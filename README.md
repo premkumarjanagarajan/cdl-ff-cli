@@ -109,6 +109,37 @@ Or download installers directly:
 
 </details>
 
+<details>
+<summary><strong>Linux</strong></summary>
+
+```bash
+# Node.js (via NodeSource or nvm)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Git (usually pre-installed, or via package manager)
+sudo apt-get install -y git          # Debian/Ubuntu
+# sudo dnf install -y git            # Fedora/RHEL
+
+# GitHub CLI (required)
+# Debian/Ubuntu:
+(type -p wget >/dev/null || sudo apt-get install wget -y) \
+  && sudo mkdir -p -m 755 /etc/apt/keyrings \
+  && out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  && cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+  && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+  && sudo apt-get update \
+  && sudo apt-get install gh -y
+
+# Fedora/RHEL:
+# sudo dnf install gh -y
+
+gh auth login
+```
+
+</details>
+
 ### GitHub CLI Authentication
 
 Authenticate with your GitHub account that has access to BetssonGroup:

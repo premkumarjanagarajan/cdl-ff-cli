@@ -96,14 +96,14 @@ function Test-Gh {
     }
 
     # Check authentication
-    $authResult = gh auth status 2>&1
+    gh auth status *> $null
     if ($LASTEXITCODE -ne 0) {
         Write-Fail "GitHub CLI is not authenticated.`n  Run: gh auth login"
     }
     Write-Success "GitHub CLI authenticated"
 
     # Verify repository access
-    $repoCheck = gh repo view "$RepoOwner/$RepoName" --json name 2>&1
+    gh repo view "$RepoOwner/$RepoName" --json name *> $null
     if ($LASTEXITCODE -ne 0) {
         Write-Fail "Cannot access $RepoOwner/$RepoName.`n  Ensure you have been granted access to this repository."
     }
@@ -121,6 +121,10 @@ function Install-OrUpdate {
         try {
             # Stash any local changes
             git stash --quiet 2>$null
+
+            # Ensure gh credentials are available for git fetch (private repo)
+            gh auth setup-git *> $null
+
             git fetch origin main --quiet
             git checkout main --quiet 2>$null
             git reset --hard origin/main --quiet

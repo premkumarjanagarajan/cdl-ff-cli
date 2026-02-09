@@ -2,11 +2,8 @@
 #
 # Fluid Flow CLI — One-line installer (macOS / Linux)
 #
-# Usage (private repo — requires GitHub CLI):
+# Usage (requires GitHub CLI — this is a private repository):
 #   gh api repos/BetssonGroup/cdl-ff-cli/contents/install.sh -H "Accept:application/vnd.github.raw" | bash
-#
-# Usage (public repo — if repo is made public):
-#   curl -fsSL https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.sh | bash
 #
 # Windows? Use the PowerShell installer instead:
 #   gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | iex
@@ -93,7 +90,7 @@ check_npm() {
 
 check_gh() {
   if ! command -v gh &>/dev/null; then
-    fail "GitHub CLI (gh) is required for private repository access.\n  Install: ${BOLD}brew install gh${RESET}  (macOS)  |  https://cli.github.com/\n  Then run: ${BOLD}gh auth login${RESET}"
+    fail "GitHub CLI (gh) is required for private repository access.\n  Install from: ${BOLD}https://cli.github.com/${RESET}\n  macOS: ${BOLD}brew install gh${RESET}  |  Linux: apt/dnf/snap (see link above)\n  Then run: ${BOLD}gh auth login${RESET}"
   fi
 
   local gh_version
@@ -126,6 +123,9 @@ clone_or_update() {
 
     # Stash any local changes
     git stash --quiet 2>/dev/null || true
+
+    # Ensure gh credentials are available for git fetch (private repo)
+    gh auth setup-git 2>/dev/null || true
 
     # Pull latest
     git fetch origin main --quiet
