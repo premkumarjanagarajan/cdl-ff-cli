@@ -13,6 +13,7 @@ import path from "node:path";
 import { runInstallCLI } from "./commands/install.js";
 import { runUpdateCLI } from "./commands/update.js";
 import { runVerifyCLI, runVerify } from "./commands/verify.js";
+import { runMcpSetupCLI } from "./commands/mcp-setup.js";
 import { theme } from "./ui/theme.js";
 import { getVersion, shortenPath } from "./utils/system.js";
 import { renderWelcome } from "./ui/welcome.js";
@@ -36,6 +37,11 @@ switch (command) {
 
   case "verify":
     runVerifyCLI(args.slice(1)).catch(fatal);
+    break;
+
+  case "mcp-setup":
+  case "mcp":
+    runMcpSetupCLI(args.slice(1)).catch(fatal);
     break;
 
   case "version":
@@ -90,6 +96,11 @@ async function runInteractiveMenu(): Promise<void> {
           description: "Check GitHub for changes & show diff",
         },
         {
+          key: "mcp-setup",
+          label: "MCP Setup",
+          description: "Configure MCP servers for Cursor / VS Code",
+        },
+        {
           key: "status",
           label: "Status",
           description: "Check installation status",
@@ -120,6 +131,11 @@ async function runInteractiveMenu(): Promise<void> {
       case "verify":
         await handleVerifyFlow();
         // Stay in the loop so user can pick another action
+        break;
+
+      case "mcp-setup":
+        await handleMcpSetupFlow();
+        running = false;
         break;
 
       case "status":
@@ -255,6 +271,10 @@ async function handleInstallFlow(): Promise<void> {
       theme.hint(`  Tip: Add '${getManifestFileName()}' to your .gitignore if you don't want to track it.`)
     );
     console.log();
+
+    // Offer MCP server configuration after successful install
+    const { offerMcpSetupAfterInstall } = await import("./commands/mcp-setup.js");
+    await offerMcpSetupAfterInstall(targetDir);
   } catch (err) {
     console.log();
     console.error(
@@ -330,6 +350,18 @@ async function handleUpdateFlow(): Promise<void> {
     );
     console.log();
   }
+}
+
+// ── MCP Setup flow ─────────────────────────────────────
+
+async function handleMcpSetupFlow(): Promise<void> {
+  // Import lazily to avoid circular dependencies
+  const { runMcpSetupCLI } = await import("./commands/mcp-setup.js");
+
+  // Delegate to the CLI handler which handles analysis, confirmation,
+  // and the full MCP setup flow.
+  // We pass an empty args array so it prompts interactively.
+  await runMcpSetupCLI([]);
 }
 
 // ── Verify flow ────────────────────────────────────────
@@ -411,19 +443,22 @@ function printHelp(): void {
   console.log();
   console.log(theme.text("  Commands:"));
   console.log(
-    `    ${theme.command("install")}   ${theme.textSecondary("Install Fluid Flow Pro into a repository")}`
+    `    ${theme.command("install")}     ${theme.textSecondary("Install Fluid Flow Pro into a repository")}`
   );
   console.log(
-    `    ${theme.command("update")}    ${theme.textSecondary("Update Fluid Flow Pro to the latest version")}`
+    `    ${theme.command("update")}      ${theme.textSecondary("Update Fluid Flow Pro to the latest version")}`
   );
   console.log(
-    `    ${theme.command("verify")}    ${theme.textSecondary("Check for upstream changes and highlight diff")}`
+    `    ${theme.command("verify")}      ${theme.textSecondary("Check for upstream changes and highlight diff")}`
   );
   console.log(
-    `    ${theme.command("version")}   ${theme.textSecondary("Show CLI version")}`
+    `    ${theme.command("mcp-setup")}   ${theme.textSecondary("Configure MCP servers for Cursor / VS Code")}`
   );
   console.log(
-    `    ${theme.command("help")}      ${theme.textSecondary("Show this help message")}`
+    `    ${theme.command("version")}     ${theme.textSecondary("Show CLI version")}`
+  );
+  console.log(
+    `    ${theme.command("help")}        ${theme.textSecondary("Show this help message")}`
   );
   console.log();
   console.log(theme.text("  Interactive mode:"));
@@ -462,6 +497,20 @@ function printHelp(): void {
   );
   console.log(
     theme.textSecondary("    ff verify /path/to/repo        # Verify a specific repo")
+  );
+  console.log();
+  console.log(theme.text("  MCP setup examples:"));
+  console.log(
+    theme.textSecondary("    ff mcp-setup                   # Interactive MCP setup")
+  );
+  console.log(
+    theme.textSecondary("    ff mcp-setup -t cursor         # Setup MCP for Cursor")
+  );
+  console.log(
+    theme.textSecondary("    ff mcp-setup -t copilot        # Setup MCP for VS Code / Copilot")
+  );
+  console.log(
+    theme.textSecondary("    ff mcp-setup -t both           # Setup MCP for both platforms")
   );
   console.log();
   console.log(

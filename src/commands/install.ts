@@ -10,6 +10,7 @@ import {
 import { isInstalled, readManifest, getManifestFileName } from "../installer/manifest.js";
 import { getRepoInfo } from "../installer/github-source.js";
 import { isDirectory } from "../installer/file-ops.js";
+import { offerMcpSetupAfterInstall } from "./mcp-setup.js";
 
 // ── CLI entry point ────────────────────────────────────
 
@@ -104,6 +105,9 @@ export async function runInstallCLI(args: string[]): Promise<void> {
   try {
     const result = await install(targetDir, platform);
     printInstallSuccess(result, targetDir);
+
+    // Offer MCP setup after successful install
+    await offerMcpSetupAfterInstall(targetDir);
   } catch (err) {
     console.log();
     console.error(
@@ -194,6 +198,9 @@ export async function handleInstallREPL(
   try {
     const result = await install(targetDir, platform);
     printInstallSuccess(result, targetDir);
+
+    // Offer MCP setup after successful install
+    await offerMcpSetupAfterInstall(targetDir);
   } catch (err) {
     console.log();
     console.error(

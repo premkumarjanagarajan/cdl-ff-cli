@@ -3,6 +3,7 @@ import { getVersion } from "../utils/system.js";
 import { handleInstallREPL } from "./install.js";
 import { handleUpdateREPL } from "./update.js";
 import { runVerify } from "./verify.js";
+import { handleMcpSetupREPL } from "./mcp-setup.js";
 
 export interface CommandContext {
   cwd: string;
@@ -46,6 +47,14 @@ export function getBuiltinCommands(): Command[] {
       description: "Check GitHub for changes and show what's new",
       execute: async (_args, ctx) => {
         await runVerify(ctx.cwd);
+      },
+    },
+    {
+      name: "mcp-setup",
+      aliases: ["/mcp-setup", "mcp"],
+      description: "Configure MCP servers for Cursor / VS Code / Copilot",
+      execute: async (args, ctx) => {
+        await handleMcpSetupREPL(args, ctx);
       },
     },
 
