@@ -6,20 +6,23 @@
 .DESCRIPTION
     Downloads and installs the Fluid Flow CLI (ff) on Windows.
     Checks prerequisites, clones the repo, builds, and links globally.
+    Requires GitHub CLI (gh) for private repository access.
 
 .EXAMPLE
-    # Run directly from GitHub:
-    irm https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.ps1 | iex
+    # Run directly (private repo — requires GitHub CLI):
+    gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | iex
 
-    # Or download and run:
-    .\install.ps1
+    # Or clone and run locally:
+    gh repo clone BetssonGroup/cdl-ff-cli $env:TEMP\cdl-ff-cli
+    & $env:TEMP\cdl-ff-cli\install.ps1
 #>
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # ── Config ──────────────────────────────────────────────
-$RepoUrl      = "https://github.com/BetssonGroup/cdl-ff-cli.git"
+$RepoOwner    = "BetssonGroup"
+$RepoName     = "cdl-ff-cli"
 $InstallDir   = Join-Path $env:USERPROFILE ".ff-cli"
 $MinNodeMajor = 20
 
@@ -80,33 +83,31 @@ function Test-Npm {
 
 function Test-Gh {
     $ghPath = Get-Command gh -ErrorAction SilentlyContinue
-    if ($ghPath) {
-        try {
-            $ghVersionRaw = (gh --version | Select-Object -First 1) -replace 'gh version ', ''
-            $ghVersion = ($ghVersionRaw -split ' ')[0]
-            Write-Success "GitHub CLI v$ghVersion"
-        } catch {
-            Write-Success "GitHub CLI installed"
-        }
-
-        # Check authentication
-        try {
-            gh auth status 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Success "GitHub CLI authenticated"
-            } else {
-                Write-Warn "GitHub CLI installed but not authenticated"
-                Write-Warn "Run 'gh auth login' to authenticate (recommended for private repos)"
-            }
-        } catch {
-            Write-Warn "GitHub CLI installed but not authenticated"
-            Write-Warn "Run 'gh auth login' to authenticate (recommended for private repos)"
-        }
-    } else {
-        Write-Warn "GitHub CLI (gh) not found — optional but recommended"
-        Write-Info  "Install with: winget install --id GitHub.cli"
-        Write-Info  "Then run: gh auth login"
+    if (-not $ghPath) {
+        Write-Fail "GitHub CLI (gh) is required for private repository access.`n  Install: winget install GitHub.cli`n  Then run: gh auth login"
     }
+
+    try {
+        $ghVersionRaw = (gh --version | Select-Object -First 1) -replace 'gh version ', ''
+        $ghVersion = ($ghVersionRaw -split ' ')[0]
+        Write-Success "GitHub CLI v$ghVersion"
+    } catch {
+        Write-Success "GitHub CLI installed"
+    }
+
+    # Check authentication
+    $authResult = gh auth status 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail "GitHub CLI is not authenticated.`n  Run: gh auth login"
+    }
+    Write-Success "GitHub CLI authenticated"
+
+    # Verify repository access
+    $repoCheck = gh repo view "$RepoOwner/$RepoName" --json name 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail "Cannot access $RepoOwner/$RepoName.`n  Ensure you have been granted access to this repository."
+    }
+    Write-Success "Access to $RepoOwner/$RepoName verified"
 }
 
 # ── Install / Update ───────────────────────────────────
@@ -128,8 +129,10 @@ function Install-OrUpdate {
             Pop-Location
         }
     } else {
-        Write-Info "Cloning ff-cli to $InstallDir..."
-        git clone --quiet $RepoUrl $InstallDir
+        Write-Info "Cloning $RepoOwner/$RepoName to $InstallDir..."
+
+        # Use gh for authenticated clone (private repo)
+        gh repo clone "$RepoOwner/$RepoName" $InstallDir -- --depth=1
         if ($LASTEXITCODE -ne 0) {
             Write-Fail "Failed to clone repository. Check your network connection and GitHub access."
         }
@@ -237,7 +240,7 @@ function Write-NextSteps {
     Write-Host "     ff install --target copilot" -ForegroundColor White
     Write-Host ""
     Write-Host "  For help:  ff --help" -ForegroundColor DarkGray
-    Write-Host "  Docs:      https://github.com/BetssonGroup/cdl-ff-cli#readme" -ForegroundColor DarkGray
+    Write-Host "  Docs:      https://github.com/$RepoOwner/$RepoName#readme" -ForegroundColor DarkGray
     Write-Host ""
 }
 

@@ -2,14 +2,17 @@
 #
 # Fluid Flow CLI — One-line installer (macOS / Linux)
 #
-# Usage:
+# Usage (private repo — requires GitHub CLI):
+#   gh api repos/BetssonGroup/cdl-ff-cli/contents/install.sh -H "Accept:application/vnd.github.raw" | bash
+#
+# Usage (public repo — if repo is made public):
 #   curl -fsSL https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.sh | bash
 #
 # Windows? Use the PowerShell installer instead:
-#   irm https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.ps1 | iex
+#   gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | iex
 #
 # What this script does:
-#   1. Checks prerequisites (Node.js >= 20, Git)
+#   1. Checks prerequisites (Node.js >= 20, Git, GitHub CLI)
 #   2. Clones ff-cli to ~/.ff-cli (or updates if already present)
 #   3. Installs npm dependencies
 #   4. Builds the TypeScript source
@@ -27,7 +30,8 @@ CYAN='\033[0;36m'
 RESET='\033[0m'
 
 # ── Config ──────────────────────────────────────────────
-REPO_URL="https://github.com/BetssonGroup/cdl-ff-cli.git"
+REPO_OWNER="BetssonGroup"
+REPO_NAME="cdl-ff-cli"
 INSTALL_DIR="$HOME/.ff-cli"
 MIN_NODE_MAJOR=20
 
@@ -88,22 +92,26 @@ check_npm() {
 }
 
 check_gh() {
-  if command -v gh &>/dev/null; then
-    local gh_version
-    gh_version=$(gh --version | head -1 | sed 's/gh version //' | cut -d' ' -f1)
-    success "GitHub CLI v${gh_version}"
-    
-    # Check if authenticated
-    if gh auth status &>/dev/null; then
-      success "GitHub CLI authenticated"
-    else
-      warn "GitHub CLI installed but not authenticated"
-      warn "Run ${BOLD}gh auth login${RESET} to authenticate (recommended for private repos)"
-    fi
+  if ! command -v gh &>/dev/null; then
+    fail "GitHub CLI (gh) is required for private repository access.\n  Install: ${BOLD}brew install gh${RESET}  (macOS)  |  https://cli.github.com/\n  Then run: ${BOLD}gh auth login${RESET}"
+  fi
+
+  local gh_version
+  gh_version=$(gh --version | head -1 | sed 's/gh version //' | cut -d' ' -f1)
+  success "GitHub CLI v${gh_version}"
+
+  # Check if authenticated
+  if gh auth status &>/dev/null; then
+    success "GitHub CLI authenticated"
   else
-    warn "GitHub CLI (gh) not found — optional but recommended"
-    info "Install with: ${BOLD}brew install gh${RESET}  (macOS)"
-    info "Then run: ${BOLD}gh auth login${RESET}"
+    fail "GitHub CLI is not authenticated.\n  Run: ${BOLD}gh auth login${RESET}"
+  fi
+
+  # Verify access to the repository
+  if gh repo view "${REPO_OWNER}/${REPO_NAME}" --json name &>/dev/null; then
+    success "Access to ${REPO_OWNER}/${REPO_NAME} verified"
+  else
+    fail "Cannot access ${REPO_OWNER}/${REPO_NAME}.\n  Ensure you have been granted access to this repository."
   fi
 }
 
@@ -126,8 +134,10 @@ clone_or_update() {
 
     success "Updated to latest"
   else
-    info "Cloning ff-cli to ${BOLD}${INSTALL_DIR}${RESET}..."
-    git clone --quiet "$REPO_URL" "$INSTALL_DIR"
+    info "Cloning ${REPO_OWNER}/${REPO_NAME} to ${BOLD}${INSTALL_DIR}${RESET}..."
+
+    # Use gh for authenticated clone (private repo)
+    gh repo clone "${REPO_OWNER}/${REPO_NAME}" "$INSTALL_DIR" -- --depth=1
     success "Repository cloned"
   fi
 }
@@ -203,7 +213,7 @@ print_next_steps() {
   echo -e "     ${BOLD}ff install --target copilot${RESET}"
   echo ""
   echo -e "  ${DIM}For help:${RESET}  ${BOLD}ff --help${RESET}"
-  echo -e "  ${DIM}Docs:${RESET}      https://github.com/BetssonGroup/cdl-ff-cli#readme"
+  echo -e "  ${DIM}Docs:${RESET}      https://github.com/${REPO_OWNER}/${REPO_NAME}#readme"
   echo ""
 }
 
