@@ -9,7 +9,7 @@
 
 .EXAMPLE
     # Run directly from GitHub:
-    irm https://raw.githubusercontent.com/cleberdelimaBetS/ff-cli/main/install.ps1 | iex
+    irm https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.ps1 | iex
 
     # Or download and run:
     .\install.ps1
@@ -19,7 +19,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # ── Config ──────────────────────────────────────────────
-$RepoUrl      = "https://github.com/cleberdelimaBetS/ff-cli.git"
+$RepoUrl      = "https://github.com/BetssonGroup/cdl-ff-cli.git"
 $InstallDir   = Join-Path $env:USERPROFILE ".ff-cli"
 $MinNodeMajor = 20
 
@@ -237,7 +237,7 @@ function Write-NextSteps {
     Write-Host "     ff install --target copilot" -ForegroundColor White
     Write-Host ""
     Write-Host "  For help:  ff --help" -ForegroundColor DarkGray
-    Write-Host "  Docs:      https://github.com/cleberdelimaBetS/ff-cli#readme" -ForegroundColor DarkGray
+    Write-Host "  Docs:      https://github.com/BetssonGroup/cdl-ff-cli#readme" -ForegroundColor DarkGray
     Write-Host ""
 }
 

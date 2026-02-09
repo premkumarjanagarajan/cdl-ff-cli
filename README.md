@@ -37,7 +37,7 @@ Fluid Flow CLI (`ff`) installs, updates, and manages the **Fluid Flow Pro** deve
 **macOS / Linux:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/cleberdelimaBetS/ff-cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.sh | bash
 cd /path/to/your-project
 ff
 ```
@@ -45,7 +45,7 @@ ff
 **Windows (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/cleberdelimaBetS/ff-cli/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.ps1 | iex
 cd C:\path\to\your-project
 ff
 ```
@@ -124,7 +124,7 @@ gh auth login
 **One-line install:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/cleberdelimaBetS/ff-cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.sh | bash
 ```
 
 This script will:
@@ -142,7 +142,7 @@ This script will:
 **One-line install (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/cleberdelimaBetS/ff-cli/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.ps1 | iex
 ```
 
 > **Execution policy:** If you get an execution policy error, run this first:
@@ -166,7 +166,7 @@ Works on macOS, Linux, and Windows:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/cleberdelimaBetS/ff-cli.git ~/.ff-cli
+git clone https://github.com/BetssonGroup/cdl-ff-cli.git ~/.ff-cli
 
 # 2. Install dependencies
 cd ~/.ff-cli
@@ -187,7 +187,7 @@ ff --version
 ### Install from a Specific Branch
 
 ```bash
-git clone -b <branch-name> https://github.com/cleberdelimaBetS/ff-cli.git ~/.ff-cli
+git clone -b <branch-name> https://github.com/BetssonGroup/cdl-ff-cli.git ~/.ff-cli
 cd ~/.ff-cli && npm install && npm run build && npm link
 ```
 
@@ -592,7 +592,7 @@ Remove-Item -Recurse -Force .github\instructions -ErrorAction SilentlyContinue
 **macOS / Linux:**
 ```bash
 # Option A: Re-run the install script
-curl -fsSL https://raw.githubusercontent.com/cleberdelimaBetS/ff-cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.sh | bash
 
 # Option B: Manual update
 cd ~/.ff-cli && git pull origin main && npm install && npm run build
@@ -601,7 +601,7 @@ cd ~/.ff-cli && git pull origin main && npm install && npm run build
 **Windows (PowerShell):**
 ```powershell
 # Option A: Re-run the install script
-irm https://raw.githubusercontent.com/cleberdelimaBetS/ff-cli/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.ps1 | iex
 
 # Option B: Manual update
 cd $env:USERPROFILE\.ff-cli; git pull origin main; npm install; npm run build
