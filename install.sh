@@ -3,10 +3,10 @@
 # Fluid Flow CLI — One-line installer (macOS / Linux)
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/cleberdelimaBetS/ff-cli/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.sh | bash
 #
 # Windows? Use the PowerShell installer instead:
-#   irm https://raw.githubusercontent.com/cleberdelimaBetS/ff-cli/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.ps1 | iex
 #
 # What this script does:
 #   1. Checks prerequisites (Node.js >= 20, Git)
@@ -27,7 +27,7 @@ CYAN='\033[0;36m'
 RESET='\033[0m'
 
 # ── Config ──────────────────────────────────────────────
-REPO_URL="https://github.com/cleberdelimaBetS/ff-cli.git"
+REPO_URL="https://github.com/BetssonGroup/cdl-ff-cli.git"
 INSTALL_DIR="$HOME/.ff-cli"
 MIN_NODE_MAJOR=20
 
@@ -203,7 +203,7 @@ print_next_steps() {
   echo -e "     ${BOLD}ff install --target copilot${RESET}"
   echo ""
   echo -e "  ${DIM}For help:${RESET}  ${BOLD}ff --help${RESET}"
-  echo -e "  ${DIM}Docs:${RESET}      https://github.com/cleberdelimaBetS/ff-cli#readme"
+  echo -e "  ${DIM}Docs:${RESET}      https://github.com/BetssonGroup/cdl-ff-cli#readme"
   echo ""
 }
 
