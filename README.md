@@ -34,10 +34,12 @@ Fluid Flow CLI (`ff`) installs, updates, and manages the **Fluid Flow Pro** deve
 
 ## Quick Start
 
+> **Note:** This is a private BetssonGroup repository. You need [GitHub CLI](https://cli.github.com/) (`gh`) authenticated with access to `BetssonGroup/cdl-ff-cli`.
+
 **macOS / Linux:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.sh | bash
+gh api repos/BetssonGroup/cdl-ff-cli/contents/install.sh -H "Accept:application/vnd.github.raw" | bash
 cd /path/to/your-project
 ff
 ```
@@ -45,7 +47,7 @@ ff
 **Windows (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.ps1 | iex
+gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | iex
 cd C:\path\to\your-project
 ff
 ```
@@ -60,7 +62,9 @@ That's it. The interactive menu guides you through everything.
 |------------|---------|---------------|---------|
 | **Node.js** | >= 20.0.0 | `node --version` | [nodejs.org](https://nodejs.org/) |
 | **Git** | any recent | `git --version` | [git-scm.com](https://git-scm.com/) |
-| **GitHub CLI** | any recent | `gh --version` | *Optional but recommended* |
+| **GitHub CLI** | any recent | `gh --version` | [cli.github.com](https://cli.github.com/) — **required** |
+
+> **GitHub CLI is required** because this is a private repository. The `gh` CLI handles authentication automatically for cloning and downloading.
 
 ### Installing Prerequisites
 
@@ -74,7 +78,7 @@ brew install node@20
 # Git (usually pre-installed, or via Homebrew)
 brew install git
 
-# GitHub CLI (recommended)
+# GitHub CLI (required)
 brew install gh
 gh auth login
 ```
@@ -91,7 +95,7 @@ winget install OpenJS.NodeJS.LTS
 # Git (via winget)
 winget install Git.Git
 
-# GitHub CLI (recommended, via winget)
+# GitHub CLI (required)
 winget install GitHub.cli
 gh auth login
 ```
@@ -101,19 +105,54 @@ Or download installers directly:
 - Git: [git-scm.com/download/win](https://git-scm.com/download/win)
 - GitHub CLI: [cli.github.com](https://cli.github.com/)
 
-> **Note:** After installing Node.js or Git via an installer, you may need to restart your terminal for the commands to be available.
+> **Note:** After installing via installers, you may need to restart your terminal for the commands to be available.
 
 </details>
 
-### GitHub CLI Authentication (Recommended)
+<details>
+<summary><strong>Linux</strong></summary>
 
-The CLI uses GitHub CLI (`gh`) for authenticated access to the BetssonGroup workflow repository. If `gh` is not available, it falls back to `git clone` via HTTPS.
+```bash
+# Node.js (via NodeSource or nvm)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Git (usually pre-installed, or via package manager)
+sudo apt-get install -y git          # Debian/Ubuntu
+# sudo dnf install -y git            # Fedora/RHEL
+
+# GitHub CLI (required)
+# Debian/Ubuntu:
+(type -p wget >/dev/null || sudo apt-get install wget -y) \
+  && sudo mkdir -p -m 755 /etc/apt/keyrings \
+  && out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  && cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+  && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+  && sudo apt-get update \
+  && sudo apt-get install gh -y
+
+# Fedora/RHEL:
+# sudo dnf install gh -y
+
+gh auth login
+```
+
+</details>
+
+### GitHub CLI Authentication
+
+Authenticate with your GitHub account that has access to BetssonGroup:
 
 ```bash
 gh auth login
 ```
 
-> **Why `gh`?** The workflow source repository (`BetssonGroup/aidlc-workflow`) may require authentication. Using `gh` ensures seamless access with your GitHub credentials.
+Verify you have access to the repository:
+
+```bash
+gh repo view BetssonGroup/cdl-ff-cli
+```
 
 ---
 
@@ -124,16 +163,17 @@ gh auth login
 **One-line install:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.sh | bash
+gh api repos/BetssonGroup/cdl-ff-cli/contents/install.sh -H "Accept:application/vnd.github.raw" | bash
 ```
 
 This script will:
-1. Check that Node.js >= 20 and Git are installed
-2. Clone `ff-cli` to `~/.ff-cli`
-3. Install dependencies (`npm install`)
-4. Build the TypeScript source (`npm run build`)
-5. Link the CLI globally (`npm link`) — makes `ff` and `fluidflow` available everywhere
-6. Verify the installation
+1. Verify Node.js >= 20, Git, npm, and GitHub CLI are installed and authenticated
+2. Verify access to `BetssonGroup/cdl-ff-cli`
+3. Clone the repository to `~/.ff-cli` using `gh`
+4. Install dependencies (`npm install`)
+5. Build the TypeScript source (`npm run build`)
+6. Link the CLI globally (`npm link`) — makes `ff` and `fluidflow` available everywhere
+7. Verify the installation
 
 **Re-running the script updates to the latest version** (it's idempotent).
 
@@ -142,7 +182,7 @@ This script will:
 **One-line install (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.ps1 | iex
+gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | iex
 ```
 
 > **Execution policy:** If you get an execution policy error, run this first:
@@ -151,12 +191,13 @@ irm https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.ps1 |
 > ```
 
 This script will:
-1. Check that Node.js >= 20 and Git are installed
-2. Clone `ff-cli` to `%USERPROFILE%\.ff-cli`
-3. Install dependencies (`npm install`)
-4. Build the TypeScript source (`npm run build`)
-5. Link the CLI globally (`npm link`) — makes `ff` and `fluidflow` available everywhere
-6. Verify the installation
+1. Verify Node.js >= 20, Git, npm, and GitHub CLI are installed and authenticated
+2. Verify access to `BetssonGroup/cdl-ff-cli`
+3. Clone the repository to `%USERPROFILE%\.ff-cli` using `gh`
+4. Install dependencies (`npm install`)
+5. Build the TypeScript source (`npm run build`)
+6. Link the CLI globally (`npm link`) — makes `ff` and `fluidflow` available everywhere
+7. Verify the installation
 
 **Re-running the script updates to the latest version** (it's idempotent).
 
@@ -165,8 +206,8 @@ This script will:
 Works on macOS, Linux, and Windows:
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/BetssonGroup/cdl-ff-cli.git ~/.ff-cli
+# 1. Clone the repository (uses gh for authenticated access)
+gh repo clone BetssonGroup/cdl-ff-cli ~/.ff-cli
 
 # 2. Install dependencies
 cd ~/.ff-cli
@@ -187,7 +228,7 @@ ff --version
 ### Install from a Specific Branch
 
 ```bash
-git clone -b <branch-name> https://github.com/BetssonGroup/cdl-ff-cli.git ~/.ff-cli
+gh repo clone BetssonGroup/cdl-ff-cli ~/.ff-cli -- --branch <branch-name>
 cd ~/.ff-cli && npm install && npm run build && npm link
 ```
 
@@ -495,6 +536,10 @@ This means the CLI can't access the workflow source repository. Solutions:
    git ls-remote https://github.com/BetssonGroup/aidlc-workflow.git
    ```
 
+### "Cannot access BetssonGroup/cdl-ff-cli"
+
+You need to be a member of the BetssonGroup GitHub organization with access to this repository. Contact your team lead or GitHub admin to request access.
+
 ### "Node.js version too old"
 
 The CLI requires Node.js >= 20.0.0:
@@ -592,7 +637,7 @@ Remove-Item -Recurse -Force .github\instructions -ErrorAction SilentlyContinue
 **macOS / Linux:**
 ```bash
 # Option A: Re-run the install script
-curl -fsSL https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.sh | bash
+gh api repos/BetssonGroup/cdl-ff-cli/contents/install.sh -H "Accept:application/vnd.github.raw" | bash
 
 # Option B: Manual update
 cd ~/.ff-cli && git pull origin main && npm install && npm run build
@@ -601,7 +646,7 @@ cd ~/.ff-cli && git pull origin main && npm install && npm run build
 **Windows (PowerShell):**
 ```powershell
 # Option A: Re-run the install script
-irm https://raw.githubusercontent.com/BetssonGroup/cdl-ff-cli/main/install.ps1 | iex
+gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | iex
 
 # Option B: Manual update
 cd $env:USERPROFILE\.ff-cli; git pull origin main; npm install; npm run build
