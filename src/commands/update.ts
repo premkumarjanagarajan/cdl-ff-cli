@@ -1,275 +1,182 @@
+/**
+ * Update Command
+ *
+ * CLI handler for: ff update <workflow> [target-dir] [--force] [--check]
+ *
+ * The first positional argument is the workflow ID (e.g. "dev").
+ */
+
 import path from "node:path";
 import { theme } from "../ui/theme.js";
-import {
-  update,
-  checkForUpdate,
-  type UpdateResult,
-} from "../installer/index.js";
-import { readManifest } from "../installer/manifest.js";
+import { requireWorkflow, getAllWorkflows } from "../workflows/registry.js";
+import { cloneSource, getRemoteHeadSha, getRepoInfo } from "../installer/github-source.js";
 import { isDirectory } from "../installer/file-ops.js";
+import { updateFiles } from "../modules/file-installer.js";
+import { installEntryPoint } from "../modules/entry-point.js";
+import {
+  readWorkflowManifest,
+  writeWorkflowManifest,
+  updateManifestEntry,
+} from "../modules/manifest.js";
 
-// ── CLI entry point ────────────────────────────────────
+// -- CLI entry point ----------------------------------------------------------
 
 /**
  * Run the update command from CLI arguments.
- * Usage: ff update [target-dir] [--force] [--check]
+ * Usage: ff update <workflow> [target-dir] [--force] [--check]
+ *
+ * The first element of args is the workflow ID.
  */
 export async function runUpdateCLI(args: string[]): Promise<void> {
+  const workflowId = args[0];
+
+  if (!workflowId || workflowId.startsWith("-")) {
+    console.error(theme.textError("  Missing workflow ID."));
+    console.error(theme.hint(`  Usage: ff update <workflow> [options]`));
+    console.error(
+      theme.hint(`  Available: ${getAllWorkflows().map((w) => w.id).join(", ")}`)
+    );
+    process.exit(1);
+  }
+
+  let config;
+  try {
+    config = requireWorkflow(workflowId);
+  } catch {
+    console.error(theme.textError(`  Unknown workflow: "${workflowId}"`));
+    console.error(theme.hint(`  Available: ${getAllWorkflows().map((w) => w.id).join(", ")}`));
+    process.exit(1);
+  }
+  const restArgs = args.slice(1);
+
   let targetDir: string | undefined;
   let force = false;
   let checkOnly = false;
 
-  // Parse arguments
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]!;
+  for (let i = 0; i < restArgs.length; i++) {
+    const arg = restArgs[i]!;
     if (arg === "--force" || arg === "-f") {
       force = true;
     } else if (arg === "--check" || arg === "-c") {
       checkOnly = true;
     } else if (arg === "--help" || arg === "-h") {
-      printUpdateHelp();
+      printUpdateHelp(config.id);
       return;
     } else if (!arg.startsWith("-")) {
       targetDir = arg;
     }
   }
 
-  // Resolve target
   targetDir = targetDir ? path.resolve(targetDir) : process.cwd();
 
   if (!isDirectory(targetDir)) {
-    console.error(
-      theme.textError(`  Directory does not exist: ${targetDir}`)
-    );
+    console.error(theme.textError(`  Directory does not exist: ${targetDir}`));
+    process.exit(1);
+  }
+
+  const entry = readWorkflowManifest(targetDir, config.id);
+
+  if (!entry) {
+    console.log();
+    console.log(theme.textWarning(`  ${config.name} is not installed in this directory.`));
+    console.log(theme.hint(`  Run 'ff install ${config.id}' first.`));
+    console.log();
     process.exit(1);
   }
 
   // Check-only mode
   if (checkOnly) {
-    const check = checkForUpdate(targetDir);
-
-    if (!check.installed) {
-      console.log();
-      console.log(
-        theme.textWarning("  Fluid Flow is not installed in this directory.")
-      );
-      console.log(theme.hint("  Run 'ff install' first."));
-      console.log();
-      process.exit(1);
-    }
+    const latestSha = getRemoteHeadSha(entry.branch, config.source);
 
     console.log();
-    console.log(
-      `  ${theme.textSecondary("Platform:")}   ${theme.text(check.platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`
-    );
-    console.log(
-      `  ${theme.textSecondary("Current:")}    ${theme.text(check.currentSha?.slice(0, 8) ?? "unknown")}`
-    );
-    console.log(
-      `  ${theme.textSecondary("Latest:")}     ${theme.text(check.latestSha?.slice(0, 8) ?? "unknown")}`
-    );
+    console.log(`  ${theme.textSecondary("Platform:")}   ${theme.text(entry.platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`);
+    console.log(`  ${theme.textSecondary("Current:")}    ${theme.text(entry.commitSha.slice(0, 8))}`);
+    console.log(`  ${theme.textSecondary("Latest:")}     ${theme.text(latestSha?.slice(0, 8) ?? "unknown")}`);
 
-    if (check.updateAvailable) {
+    if (latestSha && latestSha !== entry.commitSha) {
       console.log();
-      console.log(
-        `  ${theme.textSuccess("✓")} ${theme.brandBold("Update available!")} Run 'ff update' to apply.`
-      );
+      console.log(`  ${theme.textSuccess("\u2713")} ${theme.brandBold("Update available!")} Run 'ff update ${config.id}' to apply.`);
     } else {
       console.log();
-      console.log(
-        `  ${theme.textSuccess("✓")} ${theme.text("Already up to date.")}`
-      );
+      console.log(`  ${theme.textSuccess("\u2713")} ${theme.text("Already up to date.")}`);
     }
     console.log();
     return;
   }
 
   // Perform update
-  console.log();
-  const manifest = readManifest(targetDir);
-  if (!manifest) {
-    console.log(
-      theme.textWarning("  Fluid Flow is not installed in this directory.")
-    );
-    console.log(theme.hint("  Run 'ff install' first."));
-    console.log();
-    process.exit(1);
-  }
+  const previousSha = entry.commitSha;
 
-  console.log(
-    `  ${theme.textSecondary("Platform:")} ${theme.text(manifest.platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`
-  );
-  console.log(
-    `  ${theme.textSecondary("Current:")}  ${theme.text(manifest.commitSha.slice(0, 8))}`
-  );
+  console.log();
+  console.log(`  ${theme.textSecondary("Platform:")} ${theme.text(entry.platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`);
+  console.log(`  ${theme.textSecondary("Current:")}  ${theme.text(previousSha.slice(0, 8))}`);
   console.log();
 
-  try {
-    const result = await update(targetDir, { force });
-    printUpdateSuccess(result);
-  } catch (err) {
-    console.log();
-    console.error(
-      theme.textError(
-        `  Update failed: ${err instanceof Error ? err.message : String(err)}`
-      )
-    );
-    console.log();
-    process.exit(1);
-  }
-}
-
-// ── REPL command handler ────────────────────────────────
-
-/**
- * Handle the update command from within the REPL.
- */
-export async function handleUpdateREPL(
-  args: string,
-  ctx: { cwd: string }
-): Promise<void> {
-  const parts = args.trim().split(/\s+/).filter(Boolean);
-
-  let targetDir = ctx.cwd;
-  let force = false;
-  let checkOnly = false;
-
-  for (const part of parts) {
-    if (part === "--force" || part === "-f") {
-      force = true;
-    } else if (part === "--check" || part === "-c") {
-      checkOnly = true;
-    } else if (!part.startsWith("-")) {
-      targetDir = path.resolve(ctx.cwd, part);
-    }
-  }
-
-  if (!isDirectory(targetDir)) {
-    console.log();
-    console.log(theme.textError(`  Directory does not exist: ${targetDir}`));
-    console.log();
-    return;
-  }
-
-  if (checkOnly) {
-    const check = checkForUpdate(targetDir);
-
-    if (!check.installed) {
+  // Check if update needed
+  if (!force) {
+    console.log(`  ${theme.brandBright("\u2192")} ${theme.text("Checking for updates...")}`);
+    const latestSha = getRemoteHeadSha(entry.branch, config.source);
+    if (latestSha && latestSha === previousSha) {
       console.log();
-      console.log(
-        theme.textWarning("  Fluid Flow is not installed here. Run 'install' first.")
-      );
+      console.log(`  ${theme.textSuccess("\u2713")} ${theme.text("Already up to date.")} (${previousSha.slice(0, 8)})`);
       console.log();
       return;
     }
-
-    console.log();
-    console.log(
-      `  ${theme.textSecondary("Current:")} ${theme.text(check.currentSha?.slice(0, 8) ?? "unknown")}`
-    );
-    console.log(
-      `  ${theme.textSecondary("Latest:")}  ${theme.text(check.latestSha?.slice(0, 8) ?? "unknown")}`
-    );
-
-    if (check.updateAvailable) {
-      console.log(
-        `  ${theme.textSuccess("✓")} ${theme.brandBold("Update available!")} Run 'update' to apply.`
-      );
-    } else {
-      console.log(`  ${theme.textSuccess("✓")} ${theme.text("Up to date.")}`);
-    }
-    console.log();
-    return;
   }
-
-  const manifest = readManifest(targetDir);
-  if (!manifest) {
-    console.log();
-    console.log(
-      theme.textWarning("  Fluid Flow is not installed here. Run 'install' first.")
-    );
-    console.log();
-    return;
-  }
-
-  console.log();
-  console.log(
-    `  ${theme.textSecondary("Current:")} ${theme.text(manifest.commitSha.slice(0, 8))}`
-  );
-  console.log();
 
   try {
-    const result = await update(targetDir, { force });
-    printUpdateSuccess(result);
+    console.log(`  ${theme.brandBright("\u2192")} ${theme.text("Downloading latest from GitHub...")}`);
+    const source = await cloneSource(entry.branch, config.source);
+
+    try {
+      const fileResult = await updateFiles(config, targetDir, source.localPath);
+      const entryResult = await installEntryPoint(config, entry.platform, targetDir, source.localPath);
+
+      const installedPaths = [...fileResult.installedPaths, ...entryResult.installedPaths];
+      const totalFiles = fileResult.filesCopied + entryResult.filesCopied;
+
+      const updatedEntry = updateManifestEntry(entry, {
+        commitSha: source.commitSha,
+        branch: source.branch,
+        installedPaths,
+      });
+      writeWorkflowManifest(targetDir, config.id, updatedEntry);
+
+      console.log();
+      console.log(`  ${theme.textSuccess("\u2713")} ${theme.brandBold(`${config.name} updated successfully!`)}`);
+      console.log();
+      console.log(`  ${theme.textSecondary("Files updated:")} ${theme.text(String(totalFiles))}`);
+      console.log(`  ${theme.textSecondary("Previous:")}      ${theme.text(previousSha.slice(0, 8))}`);
+      console.log(`  ${theme.textSecondary("Current:")}       ${theme.text(source.commitSha.slice(0, 8))}`);
+      console.log();
+    } finally {
+      source.cleanup();
+    }
   } catch (err) {
     console.log();
     console.error(
-      theme.textError(
-        `  Update failed: ${err instanceof Error ? err.message : String(err)}`
-      )
+      theme.textError(`  Update failed: ${err instanceof Error ? err.message : String(err)}`)
     );
     console.log();
+    process.exit(1);
   }
 }
 
-// ── Output helpers ──────────────────────────────────────
+// -- Output -------------------------------------------------------------------
 
-function printUpdateSuccess(result: UpdateResult): void {
-  console.log();
-
-  if (result.wasUpToDate) {
-    console.log(
-      `  ${theme.textSuccess("✓")} ${theme.text("Already up to date.")} (${result.newSha.slice(0, 8)})`
-    );
-  } else {
-    console.log(
-      `  ${theme.textSuccess("✓")} ${theme.brandBold("Fluid Flow Pro updated successfully!")}`
-    );
-    console.log();
-    console.log(
-      `  ${theme.textSecondary("Files updated:")} ${theme.text(String(result.filesCopied))}`
-    );
-    console.log(
-      `  ${theme.textSecondary("Previous:")}      ${theme.text(result.previousSha.slice(0, 8))}`
-    );
-    console.log(
-      `  ${theme.textSecondary("Current:")}       ${theme.text(result.newSha.slice(0, 8))}`
-    );
-  }
-
-  console.log();
-}
-
-function printUpdateHelp(): void {
+function printUpdateHelp(workflowId: string): void {
   console.log();
   console.log(
-    theme.brandBold("  ff update") +
-      theme.textSecondary(" — Update Fluid Flow Pro to the latest version")
+    theme.brandBold(`  ff update ${workflowId}`) +
+    theme.textSecondary(` \u2014 Update the ${workflowId} workflow`)
   );
   console.log();
   console.log(theme.text("  Usage:"));
-  console.log(theme.textSecondary("    ff update [target-dir] [options]"));
+  console.log(theme.textSecondary(`    ff update ${workflowId} [target-dir] [options]`));
   console.log();
   console.log(theme.text("  Options:"));
-  console.log(
-    `    ${theme.command("--check, -c")}  ${theme.textSecondary("Check for updates without applying them")}`
-  );
-  console.log(
-    `    ${theme.command("--force, -f")}  ${theme.textSecondary("Force update even if already up to date")}`
-  );
-  console.log(
-    `    ${theme.command("--help, -h")}   ${theme.textSecondary("Show this help")}`
-  );
-  console.log();
-  console.log(theme.text("  Examples:"));
-  console.log(
-    theme.textSecondary("    ff update                 # Update in current directory")
-  );
-  console.log(
-    theme.textSecondary("    ff update --check         # Check if update is available")
-  );
-  console.log(
-    theme.textSecondary("    ff update --force         # Force re-download and reinstall")
-  );
+  console.log(`    ${theme.command("--check, -c")}  ${theme.textSecondary("Check for updates without applying")}`);
+  console.log(`    ${theme.command("--force, -f")}  ${theme.textSecondary("Force update even if up to date")}`);
+  console.log(`    ${theme.command("--help, -h")}   ${theme.textSecondary("Show this help")}`);
   console.log();
 }

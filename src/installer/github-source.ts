@@ -2,71 +2,72 @@ import { execSync } from "node:child_process";
 import path from "node:path";
 import os from "node:os";
 import { removeDirectory, pathExists } from "./file-ops.js";
+import type { SourceConfig } from "../workflows/types.js";
 
-/** The canonical source repository for Fluid Flow Pro. */
-const REPO_URL = "https://github.com/BetssonGroup/aidlc-workflow.git";
-const REPO_OWNER = "BetssonGroup";
-const REPO_NAME = "aidlc-workflow";
+/** Default source repository (legacy fallback). */
+const DEFAULT_OWNER = "BetssonGroup";
+const DEFAULT_NAME = "aidlc-workflow";
+
+function resolveSource(source?: SourceConfig) {
+  const owner = source?.owner ?? DEFAULT_OWNER;
+  const repo = source?.repo ?? DEFAULT_NAME;
+  const url = `https://github.com/${owner}/${repo}.git`;
+  return { owner, repo, url };
+}
 
 export interface CloneResult {
-  /** Path to the cloned directory. */
   localPath: string;
-  /** The commit SHA of HEAD. */
   commitSha: string;
-  /** The branch that was cloned. */
   branch: string;
-  /** Cleanup function — removes the temp directory. */
   cleanup: () => void;
 }
 
 /**
- * Clone the Fluid Flow Pro repo into a temporary directory.
- * Uses `--depth=1` for a shallow, fast clone.
+ * Clone a workflow source repo into a temporary directory.
+ * Uses --depth=1 for a shallow, fast clone.
  *
- * Tries `gh repo clone` first (uses authenticated GitHub CLI),
- * then falls back to `git clone` with HTTPS.
+ * Tries gh repo clone first (authenticated), falls back to git clone.
  */
 export async function cloneSource(
-  branch = "main"
+  branch = "main",
+  source?: SourceConfig
 ): Promise<CloneResult> {
+  const { owner, repo, url } = resolveSource(source);
   const tmpBase = path.join(os.tmpdir(), "fluid-flow-install");
-  const tmpDir = path.join(tmpBase, `aidlc-${Date.now()}`);
+  const tmpDir = path.join(tmpBase, `${repo}-${Date.now()}`);
 
-  // Clean up any stale temp dirs
   if (pathExists(tmpBase)) {
     removeDirectory(tmpBase);
   }
 
-  // Try gh CLI first (respects authentication), then git clone
   let cloneSucceeded = false;
 
   try {
     execSync(
-      `gh repo clone ${REPO_OWNER}/${REPO_NAME} "${tmpDir}" -- --depth=1 --branch ${branch}`,
+      `gh repo clone ${owner}/${repo} "${tmpDir}" -- --depth=1 --branch ${branch}`,
       { stdio: "pipe", encoding: "utf-8", timeout: 60_000 }
     );
     cloneSucceeded = true;
   } catch {
-    // gh not available or not authenticated — fall back to git
+    // gh not available or not authenticated
   }
 
   if (!cloneSucceeded) {
     try {
       execSync(
-        `git clone --depth=1 --branch ${branch} "${REPO_URL}" "${tmpDir}"`,
+        `git clone --depth=1 --branch ${branch} "${url}" "${tmpDir}"`,
         { stdio: "pipe", encoding: "utf-8", timeout: 60_000 }
       );
       cloneSucceeded = true;
     } catch (err) {
       throw new Error(
-        `Failed to clone ${REPO_OWNER}/${REPO_NAME}. ` +
+        `Failed to clone ${owner}/${repo}. ` +
           `Ensure you have access to the repository and either 'gh' or 'git' is available.\n` +
           `Details: ${err instanceof Error ? err.message : String(err)}`
       );
     }
   }
 
-  // Get the commit SHA
   let commitSha = "unknown";
   try {
     commitSha = execSync("git rev-parse HEAD", {
@@ -75,7 +76,7 @@ export async function cloneSource(
       stdio: "pipe",
     }).trim();
   } catch {
-    // Non-critical — we can proceed without the SHA
+    // Non-critical
   }
 
   return {
@@ -87,14 +88,17 @@ export async function cloneSource(
 }
 
 /**
- * Get the latest commit SHA of the remote repo without cloning.
- * Useful for checking if an update is available.
+ * Get the latest commit SHA of a remote repo without cloning.
  */
-export function getRemoteHeadSha(branch = "main"): string | null {
-  // Try gh first
+export function getRemoteHeadSha(
+  branch = "main",
+  source?: SourceConfig
+): string | null {
+  const { owner, repo, url } = resolveSource(source);
+
   try {
     const result = execSync(
-      `gh api repos/${REPO_OWNER}/${REPO_NAME}/commits/${branch} --jq '.sha'`,
+      `gh api repos/${owner}/${repo}/commits/${branch} --jq '.sha'`,
       { encoding: "utf-8", stdio: "pipe", timeout: 15_000 }
     ).trim();
     if (result) return result;
@@ -102,10 +106,9 @@ export function getRemoteHeadSha(branch = "main"): string | null {
     // Fall through
   }
 
-  // Fallback: git ls-remote
   try {
     const result = execSync(
-      `git ls-remote "${REPO_URL}" refs/heads/${branch}`,
+      `git ls-remote "${url}" refs/heads/${branch}`,
       { encoding: "utf-8", stdio: "pipe", timeout: 15_000 }
     ).trim();
     const sha = result.split("\t")[0];
@@ -120,16 +123,17 @@ export function getRemoteHeadSha(branch = "main"): string | null {
 /**
  * Get repository info for display purposes.
  */
-export function getRepoInfo() {
+export function getRepoInfo(source?: SourceConfig) {
+  const { owner, repo } = resolveSource(source);
   return {
-    owner: REPO_OWNER,
-    name: REPO_NAME,
-    url: `https://github.com/${REPO_OWNER}/${REPO_NAME}`,
-    fullName: `${REPO_OWNER}/${REPO_NAME}`,
+    owner,
+    name: repo,
+    url: `https://github.com/${owner}/${repo}`,
+    fullName: `${owner}/${repo}`,
   };
 }
 
-// ── Commit comparison ───────────────────────────────────
+// -- Commit comparison --------------------------------------------------------
 
 export type FileChangeStatus =
   | "added"
@@ -157,33 +161,27 @@ export interface CommitInfo {
 }
 
 export interface CompareResult {
-  /** "ahead" | "behind" | "identical" | "diverged" */
   status: string;
-  /** Number of commits between base and head. */
   aheadBy: number;
-  /** Total commits in the comparison. */
   totalCommits: number;
-  /** List of commits between base and head. */
   commits: CommitInfo[];
-  /** List of files changed. */
   files: FileChange[];
-  /** URL to view the comparison on GitHub. */
   htmlUrl: string;
 }
 
 /**
- * Fetch the most recent commits from the repository.
- * Useful for showing recent activity when no local installation exists.
- *
- * Uses: GET /repos/{owner}/{repo}/commits?per_page=N
+ * Fetch the most recent commits from a repository.
  */
 export function getRecentCommits(
   count = 10,
-  branch = "main"
+  branch = "main",
+  source?: SourceConfig
 ): CommitInfo[] | null {
+  const { owner, repo } = resolveSource(source);
+
   try {
     const raw = execSync(
-      `gh api "repos/${REPO_OWNER}/${REPO_NAME}/commits?sha=${branch}&per_page=${count}"`,
+      `gh api "repos/${owner}/${repo}/commits?sha=${branch}&per_page=${count}"`,
       { encoding: "utf-8", stdio: "pipe", timeout: 15_000 }
     );
 
@@ -206,17 +204,17 @@ export function getRecentCommits(
 
 /**
  * Compare two commits using the GitHub API.
- * Returns the diff between `baseSha` (installed) and `headSha` (latest).
- *
- * Uses: GET /repos/{owner}/{repo}/compare/{base}...{head}
  */
 export function compareCommits(
   baseSha: string,
-  headSha: string
+  headSha: string,
+  source?: SourceConfig
 ): CompareResult | null {
+  const { owner, repo } = resolveSource(source);
+
   try {
     const raw = execSync(
-      `gh api repos/${REPO_OWNER}/${REPO_NAME}/compare/${baseSha}...${headSha}`,
+      `gh api repos/${owner}/${repo}/compare/${baseSha}...${headSha}`,
       { encoding: "utf-8", stdio: "pipe", timeout: 30_000 }
     );
 
