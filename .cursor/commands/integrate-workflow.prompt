@@ -1,0 +1,149 @@
+---
+description: Integrate a new workflow into Fluid Flow CLI from a source repository
+variables:
+  - name: repo_url
+    description: GitHub repository URL for the new workflow (e.g. https://github.com/BetssonGroup/product-workflow)
+    required: true
+---
+
+I need you to integrate a new workflow into the Fluid Flow CLI application.
+
+The source repository for the new workflow is: {{repo_url}}
+
+Follow the integration guide at `docs/adding-a-workflow.md` exactly. Before writing any code, you MUST complete the analysis and question phases below.
+
+---
+
+### PHASE 1: Analyse the source repository
+
+Clone or inspect the provided repository and gather the following information:
+
+1. **Repository structure** — List all top-level directories and note which ones contain the workflow files that should be installed into target projects.
+2. **Entry point files** — Search for `.cursor/rules/*.mdc` files. These are Cursor IDE entry points. List every match with its full path.
+3. **Technology instructions** — Check if there is an `Instructions/technology/` directory (or similar) that contains technology-specific instruction files for Copilot.
+4. **Shell scripts** — Check if the repo contains `.sh` files or other scripts that need to be made executable.
+5. **Default branch** — Identify the default branch name (e.g. `main`, `master`).
+6. **README / description** — Read the repository README or description to understand what the workflow does and who it is for.
+
+Present your findings as a structured summary before proceeding.
+
+---
+
+### PHASE 2: Ask mandatory questions
+
+Based on your analysis, ask me the following questions. For each question, suggest a default based on what you found in the repo. If a question can be answered with certainty from the repo contents, state your answer and note "(auto-detected)" — I will confirm or override.
+
+**Identity:**
+
+1. **Workflow ID** — The short, lowercase identifier used in CLI commands (e.g. `ff install <id>`). Must be unique across all registered workflows. Check `src/workflows/registry.ts` for existing IDs.
+   - Suggest based on the repo name.
+
+2. **Workflow Name** — Human-readable name shown in menus (e.g. "Product Workflow").
+   - Suggest based on the repo README or name.
+
+3. **Description** — One-line description shown next to the menu item.
+   - Suggest based on the repo README.
+
+**Source:**
+
+4. **Branch** — Which branch should the CLI clone from?
+   - Default: the repo's default branch (auto-detected).
+
+**Installation:**
+
+5. **Directories to install** — Which top-level directories from the source repo should be copied into the target project? List all candidates you found and ask which ones to include.
+
+6. **Cursor entry point** — Which `.mdc` file is the primary entry point for Cursor? If you found exactly one, propose it. If you found multiple, list them and ask which one.
+
+7. **Copilot support** — Should this workflow support GitHub Copilot? If yes:
+   - The Cursor `.mdc` entry point will be transformed to Copilot format and written to `.github/<name>-instructions.md`.
+   - Ask what the Copilot instructions filename should be.
+
+8. **Technology instructions for Copilot** — Did you find an `Instructions/technology/` directory? If yes, propose configuring `techInstructions` with source and target directories. If no, note that this will be skipped.
+
+9. **Executable extensions** — Did you find `.sh` files? If yes, default to `[".sh"]`. If other executable types exist, list them.
+
+**MCP (Model Context Protocol):**
+
+10. **MCP servers** — Does this workflow need MCP server configuration? Ask the user. If yes, ask which MCP servers should be included. Present the servers from the existing dev workflow config (`mcp-configs/dev-mcp.json`) as a reference and ask:
+    - Which of the existing servers should be reused? (atlassian, github, filesystem, web-search, aws-document-loader)
+    - Are there any additional MCP servers specific to this workflow?
+
+**Features:**
+
+11. **Enabled features** — Based on the answers above, confirm which features to enable:
+    - `"install"` — always yes
+    - `"update"` — always yes
+    - `"verify"` — yes unless there is a reason to skip
+    - `"mcp"` — yes only if MCP servers are configured
+
+Present all questions together. Do NOT proceed until I confirm all answers.
+
+---
+
+### PHASE 3: Create the configuration files
+
+Once I confirm all answers, create the integration by performing these steps in order:
+
+**Step 1: Create the workflow config file**
+
+Create `src/workflows/configs/<id>.ts` using the confirmed values. Follow the exact structure from `src/workflows/configs/dev.ts` as a reference. The file must:
+- Import `WorkflowConfig` from `"../types.js"`
+- Export a named constant `<id>Workflow` of type `WorkflowConfig`
+- Include clear JSDoc comments
+
+**Step 2: Create the MCP config file (if applicable)**
+
+If MCP was requested, create `mcp-configs/<id>-mcp.json` containing the confirmed MCP server definitions. Use placeholder tokens where needed:
+- `__GITHUB_PAT__` for GitHub personal access tokens
+- `__WORKSPACE__` for workspace folder paths
+
+If MCP was not requested, skip this step.
+
+**Step 3: Register the workflow**
+
+Modify `src/workflows/registry.ts`:
+- Add an import for the new config: `import { <id>Workflow } from "./configs/<id>.js";`
+- Add the imported config to the `ALL_WORKFLOWS` array
+
+**Step 4: Build and verify**
+
+Run `npm run build` and confirm it compiles without errors. If there are TypeScript errors, fix them before proceeding.
+
+---
+
+### PHASE 4: Verification summary
+
+After all files are created, output a summary table:
+
+| Item | Value |
+|------|-------|
+| Workflow ID | `<id>` |
+| Config file | `src/workflows/configs/<id>.ts` |
+| MCP config | `mcp-configs/<id>-mcp.json` (or "N/A") |
+| Registry modified | `src/workflows/registry.ts` |
+| Features | install, update, verify, mcp |
+| CLI commands | `ff <id>`, `ff install <id>`, `ff update <id>`, `ff mcp <id>` |
+| Build status | Pass / Fail |
+
+Then show the commands the user can run to test:
+
+```bash
+ff workflows                          # Should list the new workflow
+ff <id>                               # Should open the workflow sub-menu
+ff install <id> --target cursor       # Full install test
+ff mcp <id> -t both                   # MCP setup test (if applicable)
+```
+
+---
+
+### Rules
+
+- Read `docs/adding-a-workflow.md` for full configuration reference before starting.
+- Use `src/workflows/configs/dev.ts` as the canonical reference for config structure.
+- Use `mcp-configs/dev-mcp.json` as the canonical reference for MCP server definitions.
+- Use `src/workflows/types.ts` for all type definitions.
+- Do NOT modify any modules, commands, UI code, or existing workflow configs.
+- Do NOT skip the question phase — mandatory fields that cannot be auto-detected MUST be confirmed.
+- Do NOT invent MCP servers — only include servers the user explicitly confirms.
+- The `id` must be unique — verify against existing IDs in the registry before proposing.

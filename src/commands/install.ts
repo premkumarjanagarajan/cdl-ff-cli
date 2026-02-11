@@ -1,33 +1,68 @@
-import readline from "node:readline";
+/**
+ * Install Command
+ *
+ * CLI handler for: ff install <workflow> [target-dir] [--target cursor|copilot] [--force]
+ *
+ * The first positional argument is the workflow ID (e.g. "dev").
+ */
+
 import path from "node:path";
 import { theme } from "../ui/theme.js";
 import { renderBox } from "../ui/box.js";
-import {
-  install,
-  type Platform,
-  type InstallResult,
-} from "../installer/index.js";
-import { isInstalled, readManifest, getManifestFileName } from "../installer/manifest.js";
-import { getRepoInfo } from "../installer/github-source.js";
+import { requireWorkflow, getAllWorkflows } from "../workflows/registry.js";
+import { cloneSource, getRepoInfo } from "../installer/github-source.js";
 import { isDirectory } from "../installer/file-ops.js";
-import { offerMcpSetupAfterInstall } from "./mcp-setup.js";
+import { installFiles } from "../modules/file-installer.js";
+import { installEntryPoint } from "../modules/entry-point.js";
+import {
+  isWorkflowInstalled,
+  readWorkflowManifest,
+  writeWorkflowManifest,
+  createManifestEntry,
+  getManifestFileName,
+} from "../modules/manifest.js";
+import type { Platform } from "../workflows/types.js";
 
-// ── CLI entry point ────────────────────────────────────
+// -- CLI entry point ----------------------------------------------------------
 
 /**
  * Run the install command from CLI arguments.
- * Usage: ff install [target-dir] [--target cursor|copilot] [--force]
+ * Usage: ff install <workflow> [target-dir] [--target cursor|copilot] [--force]
+ *
+ * The first element of args is the workflow ID.
  */
 export async function runInstallCLI(args: string[]): Promise<void> {
+  // First arg is the workflow ID (required, already validated by index.ts)
+  const workflowId = args[0];
+
+  if (!workflowId || workflowId.startsWith("-")) {
+    console.error(theme.textError("  Missing workflow ID."));
+    console.error(theme.hint(`  Usage: ff install <workflow> [options]`));
+    console.error(
+      theme.hint(`  Available: ${getAllWorkflows().map((w) => w.id).join(", ")}`)
+    );
+    process.exit(1);
+  }
+
+  let config;
+  try {
+    config = requireWorkflow(workflowId);
+  } catch {
+    console.error(theme.textError(`  Unknown workflow: "${workflowId}"`));
+    console.error(theme.hint(`  Available: ${getAllWorkflows().map((w) => w.id).join(", ")}`));
+    process.exit(1);
+  }
+  const restArgs = args.slice(1);
+
   let targetDir: string | undefined;
   let platform: Platform | undefined;
   let force = false;
 
-  // Parse arguments
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]!;
-    if ((arg === "--target" || arg === "-t") && args[i + 1]) {
-      const value = args[++i]!.toLowerCase();
+  // Parse remaining arguments
+  for (let i = 0; i < restArgs.length; i++) {
+    const arg = restArgs[i]!;
+    if ((arg === "--target" || arg === "-t") && restArgs[i + 1]) {
+      const value = restArgs[++i]!.toLowerCase();
       if (value === "cursor" || value === "copilot") {
         platform = value;
       } else {
@@ -39,7 +74,7 @@ export async function runInstallCLI(args: string[]): Promise<void> {
     } else if (arg === "--force" || arg === "-f") {
       force = true;
     } else if (arg === "--help" || arg === "-h") {
-      printInstallHelp();
+      printInstallHelp(config.id);
       return;
     } else if (!arg.startsWith("-")) {
       targetDir = arg;
@@ -57,21 +92,19 @@ export async function runInstallCLI(args: string[]): Promise<void> {
   }
 
   // Check if already installed
-  if (!force && isInstalled(targetDir)) {
-    const manifest = readManifest(targetDir);
+  if (!force && isWorkflowInstalled(targetDir, config.id)) {
+    const entry = readWorkflowManifest(targetDir, config.id);
     console.log();
     console.log(
-      theme.textWarning(
-        "  Fluid Flow is already installed in this directory."
-      )
+      theme.textWarning(`  ${config.name} is already installed in this directory.`)
     );
     console.log(
       theme.textSecondary(
-        `  Platform: ${manifest?.platform}  |  Commit: ${manifest?.commitSha?.slice(0, 8)}`
+        `  Platform: ${entry?.platform}  |  Commit: ${entry?.commitSha?.slice(0, 8)}`
       )
     );
     console.log(
-      theme.hint("  Use 'ff update' to update, or 'ff install --force' to reinstall.")
+      theme.hint(`  Use 'ff update ${config.id}' to update, or 'ff install ${config.id} --force' to reinstall.`)
     );
     console.log();
     process.exit(0);
@@ -83,149 +116,94 @@ export async function runInstallCLI(args: string[]): Promise<void> {
   }
 
   // Show install plan
-  const repo = getRepoInfo();
+  const repo = getRepoInfo(config.source);
   console.log();
   console.log(
     renderBox(
       [
         "",
-        theme.brandBold("  Installing Fluid Flow Pro"),
+        theme.brandBold(`  Installing ${config.name}`),
         "",
         `  ${theme.textSecondary("Source:")}   ${theme.path(repo.fullName)}`,
         `  ${theme.textSecondary("Target:")}   ${theme.path(targetDir)}`,
         `  ${theme.textSecondary("Platform:")} ${theme.highlight(platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`,
         "",
       ],
-      { title: "Fluid Flow", minWidth: 55 }
+      { title: "Install Plan", minWidth: 55 }
     )
   );
   console.log();
 
   // Execute install
   try {
-    const result = await install(targetDir, platform);
-    printInstallSuccess(result, targetDir);
+    console.log(`  ${theme.brandBright("\u2192")} ${theme.text("Downloading latest from GitHub...")}`);
+    const source = await cloneSource(config.source.branch, config.source);
 
-    // Offer MCP setup after successful install
-    await offerMcpSetupAfterInstall(targetDir);
+    try {
+      const fileResult = await installFiles(config, targetDir, source.localPath);
+      const entryResult = await installEntryPoint(config, platform, targetDir, source.localPath);
+
+      const installedPaths = [...fileResult.installedPaths, ...entryResult.installedPaths];
+      const totalFiles = fileResult.filesCopied + entryResult.filesCopied;
+
+      // Write manifest
+      const manifestEntry = createManifestEntry({
+        platform,
+        commitSha: source.commitSha,
+        branch: source.branch,
+        sourceRepo: repo.fullName,
+        installedPaths,
+      });
+      writeWorkflowManifest(targetDir, config.id, manifestEntry);
+
+      printInstallSuccess(config, platform, totalFiles, source.commitSha);
+
+      // Offer MCP setup after successful install
+      if (config.features.includes("mcp") && config.mcp) {
+        const { setupWorkflowMcp } = await import("../modules/mcp-installer.js");
+        const { promptConfirm } = await import("../ui/menu.js");
+
+        console.log(theme.brandBright("  \u2500\u2500\u2500 MCP Server Configuration \u2500\u2500\u2500"));
+        console.log();
+        console.log(theme.text("  Would you also like to configure MCP servers?"));
+        console.log();
+
+        const wantsMcp = await promptConfirm("Configure MCP servers?");
+        if (wantsMcp) {
+          const mcpPlatform = await promptMcpPlatform();
+          const result = await setupWorkflowMcp(config, { target: mcpPlatform, targetDir });
+          console.log();
+          console.log(`  ${theme.textSuccess("\u2713")} MCP: ${result.serversAdded} servers added.`);
+          console.log();
+        }
+      }
+    } finally {
+      source.cleanup();
+    }
   } catch (err) {
     console.log();
     console.error(
-      theme.textError(
-        `  Installation failed: ${err instanceof Error ? err.message : String(err)}`
-      )
+      theme.textError(`  Installation failed: ${err instanceof Error ? err.message : String(err)}`)
     );
     console.log();
     process.exit(1);
   }
 }
 
-// ── REPL command handler ────────────────────────────────
+// -- Interactive prompts ------------------------------------------------------
 
-/**
- * Handle the install command from within the REPL.
- */
-export async function handleInstallREPL(
-  args: string,
-  ctx: { cwd: string }
-): Promise<void> {
-  const parts = args.trim().split(/\s+/);
+import readline from "node:readline";
+import type { McpTarget } from "../workflows/types.js";
 
-  let targetDir = ctx.cwd;
-  let platform: Platform | undefined;
-  let force = false;
-
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i]!;
-    if (part === "--cursor" || part === "cursor") {
-      platform = "cursor";
-    } else if (part === "--copilot" || part === "copilot") {
-      platform = "copilot";
-    } else if (part === "--force" || part === "-f") {
-      force = true;
-    } else if (part && !part.startsWith("-")) {
-      targetDir = path.resolve(ctx.cwd, part);
-    }
-  }
-
-  if (!isDirectory(targetDir)) {
-    console.log();
-    console.log(
-      theme.textError(`  Target directory does not exist: ${targetDir}`)
-    );
-    console.log();
-    return;
-  }
-
-  // Check if already installed
-  if (!force && isInstalled(targetDir)) {
-    const manifest = readManifest(targetDir);
-    console.log();
-    console.log(
-      theme.textWarning(
-        "  Fluid Flow is already installed in this directory."
-      )
-    );
-    console.log(
-      theme.textSecondary(
-        `  Platform: ${manifest?.platform}  |  Commit: ${manifest?.commitSha?.slice(0, 8)}`
-      )
-    );
-    console.log(
-      theme.hint("  Use 'update' to update, or 'install --force' to reinstall.")
-    );
-    console.log();
-    return;
-  }
-
-  if (!platform) {
-    platform = await promptPlatform();
-  }
-
-  const repo = getRepoInfo();
-  console.log();
-  console.log(
-    `  ${theme.textSecondary("Source:")}   ${theme.path(repo.fullName)}`
-  );
-  console.log(
-    `  ${theme.textSecondary("Target:")}   ${theme.path(targetDir)}`
-  );
-  console.log(
-    `  ${theme.textSecondary("Platform:")} ${theme.highlight(platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`
-  );
-  console.log();
-
-  try {
-    const result = await install(targetDir, platform);
-    printInstallSuccess(result, targetDir);
-
-    // Offer MCP setup after successful install
-    await offerMcpSetupAfterInstall(targetDir);
-  } catch (err) {
-    console.log();
-    console.error(
-      theme.textError(
-        `  Install failed: ${err instanceof Error ? err.message : String(err)}`
-      )
-    );
-    console.log();
-  }
-}
-
-// ── Interactive prompts ─────────────────────────────────
-
-/**
- * Prompt the user to choose a platform.
- */
 async function promptPlatform(): Promise<Platform> {
   console.log();
   console.log(theme.brandBold("  Choose your target platform:"));
   console.log();
   console.log(
-    `  ${theme.highlight("1")}  ${theme.text("Cursor IDE")}     ${theme.textSecondary("— installs .cursor/rules/workflow.mdc")}`
+    `  ${theme.highlight("1")}  ${theme.text("Cursor IDE")}     ${theme.textSecondary("\u2014 installs .cursor/rules/workflow.mdc")}`
   );
   console.log(
-    `  ${theme.highlight("2")}  ${theme.text("GitHub Copilot")} ${theme.textSecondary("— installs .github/copilot-instructions.md")}`
+    `  ${theme.highlight("2")}  ${theme.text("GitHub Copilot")} ${theme.textSecondary("\u2014 installs .github/copilot-instructions.md")}`
   );
   console.log();
 
@@ -248,63 +226,67 @@ async function promptPlatform(): Promise<Platform> {
             rl.close();
             resolve("copilot");
           } else {
-            console.log(
-              theme.textWarning("  Please enter 1 (Cursor) or 2 (Copilot).")
-            );
+            console.log(theme.textWarning("  Please enter 1 (Cursor) or 2 (Copilot)."));
             ask();
           }
         }
       );
     };
-
     ask();
   });
 }
 
-// ── Output helpers ──────────────────────────────────────
-
-function printInstallSuccess(result: InstallResult, targetDir: string): void {
+async function promptMcpPlatform(): Promise<McpTarget> {
   console.log();
-  console.log(
-    `  ${theme.textSuccess("✓")} ${theme.brandBold("Fluid Flow Pro installed successfully!")}`
-  );
-  console.log();
-  console.log(
-    `  ${theme.textSecondary("Files copied:")}  ${theme.text(String(result.filesCopied))}`
-  );
-  console.log(
-    `  ${theme.textSecondary("Commit:")}        ${theme.text(result.commitSha.slice(0, 8))}`
-  );
-  console.log(
-    `  ${theme.textSecondary("Platform:")}      ${theme.text(result.platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`
-  );
+  console.log(theme.brandBold("  MCP target platform:"));
+  console.log(`  ${theme.highlight("1")}  Cursor`);
+  console.log(`  ${theme.highlight("2")}  VS Code / Copilot`);
+  console.log(`  ${theme.highlight("3")}  Both`);
   console.log();
 
-  // Platform-specific next steps
-  if (result.platform === "cursor") {
+  return new Promise<McpTarget>((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin, output: process.stdout, terminal: true,
+    });
+    const ask = () => {
+      rl.question(theme.prompt("  Select (1-3): ") + " ", (answer) => {
+        const t = answer.trim();
+        if (t === "1") { rl.close(); resolve("cursor"); }
+        else if (t === "2") { rl.close(); resolve("copilot"); }
+        else if (t === "3") { rl.close(); resolve("both"); }
+        else { console.log(theme.textWarning("  Please enter 1, 2, or 3.")); ask(); }
+      });
+    };
+    ask();
+  });
+}
+
+// -- Output helpers -----------------------------------------------------------
+
+function printInstallSuccess(
+  config: import("../workflows/types.js").WorkflowConfig,
+  platform: Platform,
+  filesCopied: number,
+  commitSha: string
+): void {
+  console.log();
+  console.log(
+    `  ${theme.textSuccess("\u2713")} ${theme.brandBold(`${config.name} installed successfully!`)}`
+  );
+  console.log();
+  console.log(`  ${theme.textSecondary("Files copied:")}  ${theme.text(String(filesCopied))}`);
+  console.log(`  ${theme.textSecondary("Commit:")}        ${theme.text(commitSha.slice(0, 8))}`);
+  console.log(`  ${theme.textSecondary("Platform:")}      ${theme.text(platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`);
+  console.log();
+
+  if (platform === "cursor") {
     console.log(theme.hint("  Next steps:"));
-    console.log(
-      theme.textSecondary(
-        "  1. Open this project in Cursor — the workflow rule activates automatically"
-      )
-    );
-    console.log(
-      theme.textSecondary(
-        "  2. Make a development request in chat to trigger the workflow"
-      )
-    );
+    console.log(theme.textSecondary("  1. Open this project in Cursor \u2014 the workflow rule activates automatically"));
+    console.log(theme.textSecondary("  2. Make a development request in chat to trigger the workflow"));
   } else {
     console.log(theme.hint("  Next steps:"));
-    console.log(
-      theme.textSecondary(
-        "  1. The instructions are loaded automatically by GitHub Copilot"
-      )
-    );
-    console.log(
-      theme.textSecondary(
-        "  2. Make a development request in Copilot Chat to trigger the workflow"
-      )
-    );
+    console.log(theme.textSecondary("  1. The instructions are loaded automatically by GitHub Copilot"));
+    console.log(theme.textSecondary("  2. Make a development request in Copilot Chat to trigger the workflow"));
   }
 
   console.log();
@@ -314,36 +296,19 @@ function printInstallSuccess(result: InstallResult, targetDir: string): void {
   console.log();
 }
 
-function printInstallHelp(): void {
+function printInstallHelp(workflowId: string): void {
   console.log();
-  console.log(theme.brandBold("  ff install") + theme.textSecondary(" — Install Fluid Flow Pro into a repository"));
+  console.log(
+    theme.brandBold(`  ff install ${workflowId}`) +
+    theme.textSecondary(` \u2014 Install the ${workflowId} workflow`)
+  );
   console.log();
   console.log(theme.text("  Usage:"));
-  console.log(theme.textSecondary("    ff install [target-dir] [options]"));
+  console.log(theme.textSecondary(`    ff install ${workflowId} [target-dir] [options]`));
   console.log();
   console.log(theme.text("  Options:"));
-  console.log(
-    `    ${theme.command("--target, -t")} ${theme.textSecondary("<cursor|copilot>")}  Target platform`
-  );
-  console.log(
-    `    ${theme.command("--force, -f")}                      ${theme.textSecondary("Reinstall even if already installed")}`
-  );
-  console.log(
-    `    ${theme.command("--help, -h")}                       ${theme.textSecondary("Show this help")}`
-  );
-  console.log();
-  console.log(theme.text("  Examples:"));
-  console.log(
-    theme.textSecondary("    ff install                          # Install in current directory (prompts for platform)")
-  );
-  console.log(
-    theme.textSecondary("    ff install --target cursor          # Install for Cursor IDE")
-  );
-  console.log(
-    theme.textSecondary("    ff install /path/to/repo -t copilot # Install for GitHub Copilot in a specific directory")
-  );
-  console.log(
-    theme.textSecondary("    ff install --force                  # Force reinstall")
-  );
+  console.log(`    ${theme.command("--target, -t")} ${theme.textSecondary("<cursor|copilot>")}  Target platform`);
+  console.log(`    ${theme.command("--force, -f")}                      ${theme.textSecondary("Reinstall even if already installed")}`);
+  console.log(`    ${theme.command("--help, -h")}                       ${theme.textSecondary("Show this help")}`);
   console.log();
 }
