@@ -1,8 +1,8 @@
 # Fluid Flow CLI
 
-> Developer workflow orchestration tool for Cursor IDE and GitHub Copilot.
+> Multi-workflow orchestration tool for Cursor IDE and GitHub Copilot.
 
-Fluid Flow CLI (`ff`) installs, updates, and manages the **Fluid Flow Pro** developer workflow system in your repositories. It pulls structured workflow files from the central [BetssonGroup/aidlc-workflow](https://github.com/BetssonGroup/aidlc-workflow) repository and configures them for your preferred AI coding assistant.
+Fluid Flow CLI (`ff`) installs, updates, and manages multiple **workflow systems** in your repositories. Each workflow is independently configurable and pulls files from its own source repository. The CLI supports a modular, configuration-driven architecture where adding a new workflow requires only a config file -- no new code.
 
 ---
 
@@ -14,6 +14,7 @@ Fluid Flow CLI (`ff`) installs, updates, and manages the **Fluid Flow Pro** deve
   - [macOS / Linux](#macos--linux)
   - [Windows](#windows)
   - [Manual Install (Any OS)](#manual-install-any-os)
+- [Available Workflows](#available-workflows)
 - [Usage](#usage)
   - [Interactive Mode](#interactive-mode)
   - [CLI Commands](#cli-commands)
@@ -21,9 +22,10 @@ Fluid Flow CLI (`ff`) installs, updates, and manages the **Fluid Flow Pro** deve
   - [install](#install)
   - [update](#update)
   - [verify](#verify)
-  - [mcp-setup](#mcp-setup)
-  - [status](#status)
+  - [mcp](#mcp)
+  - [workflows](#workflows)
 - [How It Works](#how-it-works)
+- [Adding a New Workflow](#adding-a-new-workflow)
 - [Supported Platforms](#supported-platforms)
 - [Configuration Files](#configuration-files)
 - [Troubleshooting](#troubleshooting)
@@ -234,6 +236,16 @@ cd ~/.ff-cli && npm install && npm run build && npm link
 
 ---
 
+## Available Workflows
+
+| Workflow | ID | Source Repository | Description |
+|----------|----|-------------------|-------------|
+| **Development Workflow** | `dev` | `BetssonGroup/aidlc-workflow` | AI-powered development lifecycle orchestration |
+
+> More workflows (Product, Design, etc.) can be added by creating configuration files. See [Adding a New Workflow](#adding-a-new-workflow).
+
+---
+
 ## Usage
 
 ### Interactive Mode
@@ -244,29 +256,31 @@ Launch the full interactive experience by running `ff` with no arguments:
 ff
 ```
 
-This opens a menu with all available actions:
+This opens a workflow-selection menu:
 
 ```
-+-- Fluid Flow -----------------------------------------------+
-|                                                              |
-|          Welcome back, <Your Name>!                          |
-|                                                              |
-|          v0.1.0                                              |
-|          Workflow Engine                                     |
-|          ~/your/project/path                                 |
-|                                                              |
-+--------------------------------------------------------------+
+  +-- Main Menu ------------------------------------------------+
+  |                                                              |
+  |  1. Development Workflow   AI-powered development lifecycle  |
+  |  2. Status                 Check all installed workflows     |
+  |  3. Exit                   Quit Fluid Flow CLI               |
+  |                                                              |
+  +--------------------------------------------------------------+
+```
 
-  +-- Main Menu ----------------------------------------------+
-  |                                                           |
-  |  1. Install    - Install Fluid Flow Pro                   |
-  |  2. Update     - Update to the latest version             |
-  |  3. Verify     - Check for upstream changes               |
-  |  4. MCP Setup  - Configure MCP servers                    |
-  |  5. Status     - Check installation status                |
-  |  6. Exit       - Quit Fluid Flow CLI                      |
-  |                                                           |
-  +-----------------------------------------------------------+
+Selecting a workflow opens its sub-menu with all available actions:
+
+```
+  +-- Development Workflow -------------------------------------+
+  |                                                              |
+  |  1. Install      Install Development Workflow                |
+  |  2. Update       Update to the latest version                |
+  |  3. Verify       Check GitHub for changes & show diff        |
+  |  4. MCP Setup    Configure MCP servers                       |
+  |  5. Status       Check installation status                   |
+  |  6. Back         Return to main menu                         |
+  |                                                              |
+  +--------------------------------------------------------------+
 ```
 
 ### CLI Commands
@@ -274,15 +288,18 @@ This opens a menu with all available actions:
 For scripting or quick actions, use commands directly:
 
 ```bash
-ff <command> [options]
+ff [command] [workflow] [options]
 ```
 
 | Command | Description |
 |---------|-------------|
-| `ff install` | Install Fluid Flow Pro into a repository |
-| `ff update` | Update to the latest version |
+| `ff` | Launch the interactive menu |
+| `ff dev` | Open the dev workflow sub-menu directly |
+| `ff install dev` | Install the dev workflow into a repository |
+| `ff update dev` | Update the dev workflow to the latest version |
 | `ff verify` | Check for upstream changes and show diff |
-| `ff mcp-setup` | Configure MCP servers for Cursor / VS Code |
+| `ff mcp dev` | Configure MCP servers for the dev workflow |
+| `ff workflows` | List all available workflows and their status |
 | `ff version` | Show CLI version |
 | `ff help` | Show help message |
 
@@ -292,47 +309,51 @@ ff <command> [options]
 
 ### install
 
-Install Fluid Flow Pro workflow files into a target repository.
+Install a workflow into a target repository.
 
 ```bash
-# Interactive install (prompts for platform and directory)
-ff install
+# Install dev workflow (prompts for platform and directory)
+ff install dev
 
 # Install for Cursor IDE in current directory
-ff install --target cursor
+ff install dev --target cursor
 
 # Install for GitHub Copilot in current directory
-ff install --target copilot
+ff install dev --target copilot
 
 # Install in a specific directory
-ff install /path/to/repo -t cursor
+ff install dev /path/to/repo -t cursor
+
+# Force reinstall
+ff install dev --force
 ```
 
 **What it does:**
-1. Clones the latest workflow files from `BetssonGroup/aidlc-workflow`
-2. Copies the `main-workflow/` directory into your project
+1. Clones the latest workflow files from the workflow's source repository
+2. Copies the configured directories into your project
 3. Installs platform-specific entry points:
-   - **Cursor IDE**: `.cursor/rules/workflow.mdc` — activates automatically
+   - **Cursor IDE**: `.cursor/rules/workflow.mdc` -- activates automatically
    - **GitHub Copilot**: `.github/copilot-instructions.md` + `.github/instructions/*.instructions.md`
-4. Creates a `.fluid-flow.json` manifest to track the installation
+4. Updates the `.fluid-flow.json` manifest to track the installation
+5. Optionally configures MCP servers
 
 **After installation:**
-- **Cursor**: Open the project in Cursor — the workflow rule activates automatically when you make development requests
+- **Cursor**: Open the project in Cursor -- the workflow rule activates automatically when you make development requests
 - **Copilot**: Instructions are loaded automatically by GitHub Copilot
 
 ### update
 
-Update an existing Fluid Flow Pro installation to the latest version.
+Update an existing workflow installation to the latest version.
 
 ```bash
-# Update in current directory
-ff update
+# Update the dev workflow
+ff update dev
 
 # Check for updates without applying
-ff update --check
+ff update dev --check
 
 # Force re-download even if up to date
-ff update --force
+ff update dev --force
 ```
 
 ### verify
@@ -352,41 +373,50 @@ ff verify /path/to/repo
 - File-level diff summary (added, modified, removed files)
 - Link to GitHub comparison view
 
-### mcp-setup
+### mcp
 
-Configure Model Context Protocol (MCP) servers for your AI coding assistant.
+Configure Model Context Protocol (MCP) servers for a specific workflow.
 
 ```bash
-# Interactive MCP setup
-ff mcp-setup
+# Interactive MCP setup for dev workflow
+ff mcp dev
 
 # Setup for Cursor only
-ff mcp-setup -t cursor
+ff mcp dev -t cursor
 
 # Setup for VS Code / Copilot only
-ff mcp-setup -t copilot
+ff mcp dev -t copilot
 
 # Setup for both platforms
-ff mcp-setup -t both
+ff mcp dev -t both
+
+# Force overwrite existing entries
+ff mcp dev --force
 ```
 
-**Supported MCP servers:**
-- Atlassian (Jira/Confluence)
-- GitHub
-- Filesystem
-- And more
+Each workflow has its own MCP server configuration file (e.g., `mcp-configs/dev-mcp.json`). MCP servers included in the dev workflow:
 
-The setup wizard analyzes your existing configuration before making changes.
+| Server | Runtime | Default State |
+|--------|---------|---------------|
+| Atlassian (Jira/Confluence) | Node.js | Enabled |
+| GitHub | Node.js | Enabled |
+| Filesystem | Node.js | Enabled |
+| Web Search | Node.js | Disabled |
+| AWS Document Loader | Python/uv | Enabled |
 
-### status
+The setup wizard analyzes your existing configuration before making changes and never overwrites user-defined servers.
 
-Check the installation status of Fluid Flow Pro in the current directory (available in interactive mode).
+### workflows
+
+List all available workflows and their installation status.
+
+```bash
+ff workflows
+```
 
 **Shows:**
-- Whether Fluid Flow is installed
-- Current platform (Cursor / Copilot)
-- Installed commit SHA
-- Whether an update is available
+- All registered workflows with their IDs and descriptions
+- Whether each workflow is installed in the current directory
 
 ---
 
@@ -394,24 +424,103 @@ Check the installation status of Fluid Flow Pro in the current directory (availa
 
 ```mermaid
 graph TD
-    A[Run 'ff' or 'ff install'] --> B{Choose Platform}
-    B -->|Cursor IDE| C[Install .cursor/rules/workflow.mdc]
-    B -->|GitHub Copilot| D[Install .github/copilot-instructions.md]
+    A["Run 'ff' or 'ff install dev'"] --> B{Select Workflow}
+    B -->|Dev| C[Load dev.ts config]
+    B -->|Product| D[Load product.ts config]
+    B -->|Design| E[Load design.ts config]
     
-    C --> E[Clone BetssonGroup/aidlc-workflow]
-    D --> E
+    C --> F{Choose Platform}
+    F -->|Cursor IDE| G[Install .cursor/rules/workflow.mdc]
+    F -->|GitHub Copilot| H[Install .github/copilot-instructions.md]
     
-    E --> F[Copy main-workflow/ to target]
-    F --> G[Install platform entry point]
-    G --> H[Create .fluid-flow.json manifest]
-    H --> I[Offer MCP server setup]
+    G --> I[Clone source repo from config]
+    H --> I
+    
+    I --> J[FileInstaller: Copy directories]
+    J --> K[EntryPointInstaller: Platform entry point]
+    K --> L[ManifestManager: Update .fluid-flow.json]
+    L --> M[McpInstaller: Configure MCP servers]
     
     style A fill:#1a1a2e,stroke:#00d4ff,color:#fff
-    style E fill:#1a1a2e,stroke:#00d4ff,color:#fff
-    style H fill:#1a1a2e,stroke:#00d4ff,color:#fff
+    style C fill:#1a1a2e,stroke:#f0883e,color:#fff
+    style L fill:#1a1a2e,stroke:#3fb950,color:#fff
 ```
 
-The CLI pulls from the central **BetssonGroup/aidlc-workflow** repository, which contains the canonical workflow definitions. This ensures all teams use the same standardized workflow with a single source of truth.
+The CLI is **configuration-driven**: each workflow is defined by a `WorkflowConfig` object that specifies the source repository, directories to install, entry points, and MCP servers. The reusable modules (`FileInstaller`, `EntryPointInstaller`, `McpInstaller`, `ManifestManager`) read this config at runtime, so no code changes are needed to add a new workflow.
+
+---
+
+## Adding a New Workflow
+
+Adding a new workflow requires **only configuration files**, no new code:
+
+### Step 1: Create the workflow config
+
+Create `src/workflows/configs/<id>.ts`:
+
+```typescript
+import type { WorkflowConfig } from "../types.js";
+
+export const productWorkflow: WorkflowConfig = {
+  id: "product",
+  name: "Product Workflow",
+  description: "Product management and planning orchestration",
+
+  source: {
+    owner: "BetssonGroup",
+    repo: "product-workflow",      // the GitHub repo to pull from
+    branch: "main",
+  },
+
+  install: {
+    directories: ["product-workflow"],  // directories to copy
+    entryPoints: {
+      cursor: {
+        source: ".cursor/rules/product.mdc",
+        target: ".cursor/rules/product.mdc",
+      },
+      copilot: {
+        source: ".cursor/rules/product.mdc",
+        target: ".github/product-instructions.md",
+        transform: "copilot",
+      },
+    },
+    executableExtensions: [".sh"],
+  },
+
+  mcp: {
+    configFile: "mcp-configs/product-mcp.json",
+  },
+
+  features: ["install", "update", "verify", "mcp"],
+};
+```
+
+### Step 2: Create the MCP config (if needed)
+
+Create `mcp-configs/product-mcp.json` with the MCP server definitions specific to this workflow.
+
+### Step 3: Register the workflow
+
+Add the import to `src/workflows/registry.ts`:
+
+```typescript
+import { devWorkflow } from "./configs/dev.js";
+import { productWorkflow } from "./configs/product.js";
+
+const ALL_WORKFLOWS: WorkflowConfig[] = [
+  devWorkflow,
+  productWorkflow,    // <-- add here
+];
+```
+
+### Step 4: Build
+
+```bash
+npm run build
+```
+
+The new workflow automatically appears in the interactive menu and CLI commands (`ff install product`, `ff mcp product`, etc.).
 
 ---
 
@@ -434,14 +543,48 @@ The CLI pulls from the central **BetssonGroup/aidlc-workflow** repository, which
 
 ## Configuration Files
 
+### In your project (target repository)
+
 | File | Purpose | Git-track? |
 |------|---------|------------|
-| `main-workflow/` | Core workflow files installed in your project | Yes |
+| `main-workflow/` | Dev workflow files installed in your project | Yes |
 | `.cursor/rules/workflow.mdc` | Cursor IDE entry point | Yes |
 | `.github/copilot-instructions.md` | Copilot entry point | Yes |
-| `.fluid-flow.json` | Installation manifest (commit SHA, platform, date) | Optional |
+| `.fluid-flow.json` | Multi-workflow manifest (tracks all installed workflows) | Optional |
 
 > **Tip:** Add `.fluid-flow.json` to your `.gitignore` if you don't want to track installation metadata.
+
+### Manifest format (v2)
+
+The `.fluid-flow.json` manifest supports multiple workflows:
+
+```json
+{
+  "version": 2,
+  "workflows": {
+    "dev": {
+      "platform": "cursor",
+      "commitSha": "abc1234...",
+      "branch": "main",
+      "sourceRepo": "BetssonGroup/aidlc-workflow",
+      "installedAt": "2025-01-15T10:30:00.000Z",
+      "updatedAt": "2025-01-20T14:00:00.000Z",
+      "installedPaths": ["main-workflow", ".cursor/rules/workflow.mdc"]
+    }
+  }
+}
+```
+
+Legacy v1 manifests (single-workflow) are automatically migrated to v2 format.
+
+### In the CLI repository (ff-cli)
+
+| File | Purpose |
+|------|---------|
+| `src/workflows/configs/dev.ts` | Dev workflow configuration |
+| `mcp-configs/dev-mcp.json` | MCP server definitions for dev workflow |
+| `src/workflows/types.ts` | Shared type definitions |
+| `src/workflows/registry.ts` | Workflow registry (imports all configs) |
 
 ---
 
@@ -657,41 +800,43 @@ cd $env:USERPROFILE\.ff-cli; git pull origin main; npm install; npm run build
 ## Architecture
 
 ```mermaid
-graph LR
+graph TD
     subgraph CLI["ff-cli"]
-        A[bin/ff.js] --> B[src/index.ts]
-        B --> C[commands/]
-        B --> D[installer/]
-        B --> E[ui/]
-        B --> F[utils/]
+        A[src/index.ts] --> WR[workflows/registry.ts]
+        WR --> DC[configs/dev.ts]
+        WR --> PC["configs/product.ts (future)"]
         
-        C --> C1[install.ts]
-        C --> C2[update.ts]
-        C --> C3[verify.ts]
-        C --> C4[mcp-setup.ts]
+        A --> WM[commands/workflow-menu.ts]
+        WM --> FI[modules/file-installer.ts]
+        WM --> EP[modules/entry-point.ts]
+        WM --> MI[modules/mcp-installer.ts]
+        WM --> MAN[modules/manifest.ts]
         
-        D --> D1[github-source.ts]
-        D --> D2[manifest.ts]
-        D --> D3[file-ops.ts]
-        D --> D4[copilot-adapter.ts]
+        MI -->|reads| MCP["mcp-configs/dev-mcp.json"]
+        FI --> GS[installer/github-source.ts]
+        EP --> CA[installer/copilot-adapter.ts]
     end
     
-    subgraph Source["BetssonGroup/aidlc-workflow"]
-        S1[main-workflow/]
-        S2[Workflow definitions]
+    subgraph Sources["Source Repos"]
+        SR1["BetssonGroup/aidlc-workflow"]
+        SR2["BetssonGroup/product-workflow (future)"]
     end
     
     subgraph Target["Your Project"]
         T1[main-workflow/]
         T2[.cursor/rules/ or .github/]
         T3[.fluid-flow.json]
+        T4[.cursor/mcp.json or .vscode/mcp.json]
     end
     
-    D1 -->|clone| Source
-    D3 -->|copy| Target
+    GS -->|clone| Sources
+    FI -->|copy| T1
+    EP -->|write| T2
+    MAN -->|write| T3
+    MI -->|write| T4
     
     style CLI fill:#0d1117,stroke:#00d4ff,color:#fff
-    style Source fill:#0d1117,stroke:#f0883e,color:#fff
+    style Sources fill:#0d1117,stroke:#f0883e,color:#fff
     style Target fill:#0d1117,stroke:#3fb950,color:#fff
 ```
 
@@ -700,36 +845,49 @@ graph LR
 ```
 ff-cli/
 ├── bin/
-│   └── ff.js                  # Entry point (#!/usr/bin/env node)
+│   └── ff.js                      # Entry point (#!/usr/bin/env node)
+├── mcp-configs/
+│   └── dev-mcp.json               # MCP server definitions for dev workflow
 ├── src/
-│   ├── index.ts               # Main CLI — argument parsing + interactive menu
+│   ├── index.ts                   # Main CLI — dynamic multi-workflow menu
+│   ├── workflows/
+│   │   ├── types.ts               # WorkflowConfig, Platform, manifest types
+│   │   ├── registry.ts            # Central registry of all workflow configs
+│   │   └── configs/
+│   │       └── dev.ts             # Development workflow configuration
+│   ├── modules/
+│   │   ├── file-installer.ts      # Generic file copy from source to target
+│   │   ├── entry-point.ts         # Platform-specific entry point installer
+│   │   ├── mcp-installer.ts       # MCP setup (reads from JSON config files)
+│   │   └── manifest.ts            # Multi-workflow manifest (v2) manager
 │   ├── commands/
-│   │   ├── install.ts         # Install command handler
-│   │   ├── update.ts          # Update command handler
-│   │   ├── verify.ts          # Verify/diff command
-│   │   ├── mcp-setup.ts       # MCP server configuration
-│   │   └── registry.ts        # Command registry
+│   │   ├── workflow-menu.ts       # Per-workflow sub-menu (Install/Update/Verify/MCP)
+│   │   ├── install.ts             # CLI: ff install <workflow> [options]
+│   │   ├── update.ts              # CLI: ff update <workflow> [options]
+│   │   ├── verify.ts              # CLI: ff verify [target-dir]
+│   │   ├── mcp-setup.ts           # CLI: ff mcp <workflow> [options]
+│   │   └── registry.ts            # REPL command registry
 │   ├── installer/
-│   │   ├── index.ts           # Core install/update orchestration
-│   │   ├── github-source.ts   # GitHub repo cloning & API calls
-│   │   ├── manifest.ts        # .fluid-flow.json manifest management
-│   │   ├── file-ops.ts        # File system operations
-│   │   ├── copilot-adapter.ts # Copilot-specific transformations
-│   │   └── mcp-setup.ts       # MCP setup logic
+│   │   ├── index.ts               # Legacy install/update orchestration
+│   │   ├── github-source.ts       # GitHub repo cloning (parameterized per workflow)
+│   │   ├── manifest.ts            # Legacy v1 manifest (kept for compat)
+│   │   ├── mcp-setup.ts           # MCP setup infrastructure (builders, prereqs)
+│   │   ├── file-ops.ts            # File system operations
+│   │   └── copilot-adapter.ts     # Copilot-specific transformations
 │   ├── ui/
-│   │   ├── theme.ts           # Colors and styling
-│   │   ├── welcome.ts         # Welcome banner
-│   │   ├── menu.ts            # Interactive menus
-│   │   ├── prompt.ts          # User prompts
-│   │   ├── box.ts             # Box rendering
-│   │   ├── statusBar.ts       # Status bar
-│   │   └── ascii.ts           # ASCII art
+│   │   ├── theme.ts               # Colors and styling
+│   │   ├── welcome.ts             # Welcome banner
+│   │   ├── menu.ts                # Interactive menus
+│   │   ├── prompt.ts              # User prompts
+│   │   ├── box.ts                 # Box rendering
+│   │   ├── statusBar.ts           # Status bar
+│   │   └── ascii.ts               # ASCII art
 │   └── utils/
-│       └── system.ts          # System utilities
+│       └── system.ts              # System utilities
 ├── package.json
 ├── tsconfig.json
-├── install.sh                 # One-line installer (macOS / Linux)
-└── install.ps1                # One-line installer (Windows)
+├── install.sh                     # One-line installer (macOS / Linux)
+└── install.ps1                    # One-line installer (Windows)
 ```
 
 ### Tech Stack
