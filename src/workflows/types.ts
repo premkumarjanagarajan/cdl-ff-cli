@@ -130,10 +130,11 @@ export interface WorkflowManifestEntry {
 /**
  * Legacy v1 manifest (single-workflow).
  * Kept for backward compatibility, automatically migrated to v2 on read.
+ * Note: v1 only ever stored "cursor" or "copilot", never "both".
  */
 export interface ManifestV1 {
   version: 1;
-  platform: Platform;
+  platform: "cursor" | "copilot";
   commitSha: string;
   branch: string;
   sourceRepo: string;
