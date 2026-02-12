@@ -265,7 +265,7 @@ ff mcp <id> --help
 
 # Full install test (in a test directory)
 mkdir /tmp/test-workflow && cd /tmp/test-workflow
-ff install <id> --target cursor
+ff install <id>
 ```
 
 ---
@@ -521,8 +521,8 @@ After `npm run build`, the Product Workflow is fully functional:
 ```bash
 ff workflows                          # Lists: dev, product
 ff product                            # Opens product sub-menu
-ff install product --target cursor    # Installs via CLI
-ff mcp product -t both                # Configures MCP servers
+ff install product                    # Installs for both Cursor + Copilot
+ff mcp product                        # Configures MCP servers (both IDEs)
 ff update product                     # Updates to latest
 ```
 

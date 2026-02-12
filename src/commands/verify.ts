@@ -102,7 +102,7 @@ async function verifyWithoutManifest(
   repo: ReturnType<typeof getRepoInfo>
 ): Promise<void> {
   // Fetch the latest HEAD SHA
-  const latestSha = getRemoteHeadSha("main");
+  const latestSha = getRemoteHeadSha("release");
 
   if (!latestSha) {
     printNetworkError();
@@ -110,7 +110,7 @@ async function verifyWithoutManifest(
   }
 
   // Fetch recent commits
-  const recentCommits = getRecentCommits(15, "main");
+  const recentCommits = getRecentCommits(15, "release");
 
   if (!recentCommits || recentCommits.length === 0) {
     // Fallback: at least show the latest commit
@@ -147,7 +147,7 @@ async function verifyWithoutManifest(
     `  ${theme.brandBright("●")} ${theme.brandBold("Recent Repository Activity")}`,
     "",
     `  ${theme.textSecondary("Repository:")}  ${theme.path(repo.fullName)}`,
-    `  ${theme.textSecondary("Branch:")}      ${theme.text("main")}`,
+    `  ${theme.textSecondary("Branch:")}      ${theme.text("release")}`,
     `  ${theme.textSecondary("Latest:")}      ${theme.text(latestSha.slice(0, 8))}`,
     `  ${theme.textSecondary("Showing:")}     ${theme.highlight(String(commitCount))} recent commits`,
   ];
@@ -196,6 +196,17 @@ async function verifyWithoutManifest(
   console.log();
 }
 
+// ── Platform label ─────────────────────────────────────
+
+function formatPlatform(platform: string): string {
+  switch (platform) {
+    case "both": return "Cursor IDE + GitHub Copilot";
+    case "cursor": return "Cursor IDE";
+    case "copilot": return "GitHub Copilot";
+    default: return platform;
+  }
+}
+
 // ── Rendering helpers ──────────────────────────────────
 
 function printNetworkError(): void {
@@ -219,7 +230,7 @@ function printUpToDate(
         `  ${theme.textSuccess("✓")} ${theme.brandBold("Installation is up to date")}`,
         "",
         `  ${theme.textSecondary("Directory:")}  ${theme.path(shortenPath(targetDir))}`,
-        `  ${theme.textSecondary("Platform:")}   ${theme.text(platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`,
+        `  ${theme.textSecondary("Platforms:")}  ${theme.text(formatPlatform(platform))}`,
         `  ${theme.textSecondary("Commit:")}     ${theme.text(sha.slice(0, 8))}`,
         "",
         `  ${theme.hint("No changes detected between local and remote.")}`,
@@ -245,7 +256,7 @@ function printBasicDiff(
         `  ${theme.textWarning("⬆")} ${theme.brandBold("Update available")}`,
         "",
         `  ${theme.textSecondary("Directory:")}  ${theme.path(shortenPath(targetDir))}`,
-        `  ${theme.textSecondary("Platform:")}   ${theme.text(platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`,
+        `  ${theme.textSecondary("Platforms:")}  ${theme.text(formatPlatform(platform))}`,
         `  ${theme.textSecondary("Installed:")}  ${theme.text(currentSha.slice(0, 8))}`,
         `  ${theme.textSecondary("Latest:")}     ${theme.text(latestSha.slice(0, 8))}`,
         "",
@@ -280,7 +291,7 @@ function printChangeReport(
         `  ${theme.textWarning("⬆")} ${theme.brandBold("Changes detected")}`,
         "",
         `  ${theme.textSecondary("Directory:")}   ${theme.path(shortenPath(targetDir))}`,
-        `  ${theme.textSecondary("Platform:")}    ${theme.text(platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`,
+        `  ${theme.textSecondary("Platforms:")}   ${theme.text(formatPlatform(platform))}`,
         `  ${theme.textSecondary("Installed:")}   ${theme.text(currentSha.slice(0, 8))}`,
         `  ${theme.textSecondary("Latest:")}      ${theme.text(latestSha.slice(0, 8))}`,
         "",

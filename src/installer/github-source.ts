@@ -29,7 +29,7 @@ export interface CloneResult {
  * Tries gh repo clone first (authenticated), falls back to git clone.
  */
 export async function cloneSource(
-  branch = "main",
+  branch = "release",
   source?: SourceConfig
 ): Promise<CloneResult> {
   const { owner, repo, url } = resolveSource(source);
@@ -91,7 +91,7 @@ export async function cloneSource(
  * Get the latest commit SHA of a remote repo without cloning.
  */
 export function getRemoteHeadSha(
-  branch = "main",
+  branch = "release",
   source?: SourceConfig
 ): string | null {
   const { owner, repo, url } = resolveSource(source);
@@ -174,7 +174,7 @@ export interface CompareResult {
  */
 export function getRecentCommits(
   count = 10,
-  branch = "main",
+  branch = "release",
   source?: SourceConfig
 ): CommitInfo[] | null {
   const { owner, repo } = resolveSource(source);

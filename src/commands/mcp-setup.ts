@@ -1,13 +1,13 @@
 /**
  * MCP Setup Command
  *
- * CLI handler for: ff mcp <workflow> [target-dir] [--target cursor|copilot|both] [--force]
+ * CLI handler for: ff mcp <workflow> [target-dir] [--force]
  *
+ * Always configures MCP servers for both Cursor and VS Code.
  * The first positional argument is the workflow ID (e.g. "dev").
  * Loads MCP server definitions from the workflow's JSON config file.
  */
 
-import readline from "node:readline";
 import path from "node:path";
 import { theme } from "../ui/theme.js";
 import { renderBox } from "../ui/box.js";
@@ -26,8 +26,9 @@ import type { McpTarget, McpSetupResult, WorkflowConfig } from "../workflows/typ
 
 /**
  * Run the mcp-setup command from CLI arguments.
- * Usage: ff mcp <workflow> [target-dir] [--target cursor|copilot|both] [--force]
+ * Usage: ff mcp <workflow> [target-dir] [--force]
  *
+ * Always configures both Cursor and VS Code MCP servers.
  * The first element of args is the workflow ID.
  */
 export async function runMcpSetupCLI(args: string[]): Promise<void> {
@@ -61,22 +62,11 @@ export async function runMcpSetupCLI(args: string[]): Promise<void> {
   const restArgs = args.slice(1);
 
   let targetDir: string | undefined;
-  let target: McpTarget | undefined;
   let force = false;
 
   for (let i = 0; i < restArgs.length; i++) {
     const arg = restArgs[i]!;
-    if ((arg === "--target" || arg === "-t") && restArgs[i + 1]) {
-      const value = restArgs[++i]!.toLowerCase();
-      if (value === "cursor" || value === "copilot" || value === "both") {
-        target = value;
-      } else {
-        console.error(
-          theme.textError(`  Invalid target: "${value}". Use "cursor", "copilot", or "both".`)
-        );
-        process.exit(1);
-      }
-    } else if (arg === "--force" || arg === "-f") {
+    if (arg === "--force" || arg === "-f") {
       force = true;
     } else if (arg === "--help" || arg === "-h") {
       printMcpSetupHelp(config);
@@ -93,9 +83,7 @@ export async function runMcpSetupCLI(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  if (!target) {
-    target = await promptMcpTarget();
-  }
+  const target: McpTarget = "both";
 
   // Analyze and confirm
   const confirmed = await analyzeAndConfirm(config, targetDir, target, force);
@@ -119,6 +107,7 @@ export async function runMcpSetupCLI(args: string[]): Promise<void> {
 /**
  * Offer MCP setup after a successful install.
  * Called from install command handlers.
+ * Always configures both Cursor and VS Code.
  */
 export async function offerMcpSetupAfterInstall(
   config: WorkflowConfig,
@@ -130,6 +119,7 @@ export async function offerMcpSetupAfterInstall(
   console.log();
   console.log(theme.text("  Would you also like to configure MCP servers for this project?"));
   console.log(theme.textSecondary("  This sets up Atlassian, GitHub, filesystem, and other MCP tools."));
+  console.log(theme.textSecondary("  MCP will be configured for both Cursor and VS Code."));
   console.log();
 
   const wantsMcp = await promptConfirm("Configure MCP servers?");
@@ -141,7 +131,7 @@ export async function offerMcpSetupAfterInstall(
     return;
   }
 
-  const target = await promptMcpTarget();
+  const target: McpTarget = "both";
   const confirmed = await analyzeAndConfirm(config, targetDir, target, false);
   if (!confirmed) return;
 
@@ -233,38 +223,6 @@ function displayConfigAnalysis(analysis: ConfigAnalysis, force: boolean): void {
   }
 }
 
-// -- Interactive prompts ------------------------------------------------------
-
-async function promptMcpTarget(): Promise<McpTarget> {
-  console.log();
-  console.log(theme.brandBold("  Choose your target platform:"));
-  console.log();
-  console.log(`  ${theme.highlight("1")}  ${theme.text("Cursor")}               ${theme.textSecondary("\u2014 .cursor/mcp.json")}`);
-  console.log(`  ${theme.highlight("2")}  ${theme.text("VS Code / Copilot")}    ${theme.textSecondary("\u2014 .vscode/mcp.json + settings")}`);
-  console.log(`  ${theme.highlight("3")}  ${theme.text("Both")}                 ${theme.textSecondary("\u2014 configure both platforms")}`);
-  console.log();
-
-  return new Promise<McpTarget>((resolve) => {
-    const rl = readline.createInterface({
-      input: process.stdin, output: process.stdout, terminal: true,
-    });
-
-    const ask = () => {
-      rl.question(theme.prompt("  Select (1, 2, or 3): ") + " ", (answer) => {
-        const trimmed = answer.trim().toLowerCase();
-        if (trimmed === "1" || trimmed === "cursor") { rl.close(); resolve("cursor"); }
-        else if (trimmed === "2" || trimmed === "copilot" || trimmed === "vscode") { rl.close(); resolve("copilot"); }
-        else if (trimmed === "3" || trimmed === "both") { rl.close(); resolve("both"); }
-        else {
-          console.log(theme.textWarning("  Please enter 1 (Cursor), 2 (VS Code / Copilot), or 3 (Both)."));
-          ask();
-        }
-      });
-    };
-    ask();
-  });
-}
-
 // -- Output helpers -----------------------------------------------------------
 
 function formatTarget(target: McpTarget): string {
@@ -306,10 +264,11 @@ function printMcpSetupHelp(config: WorkflowConfig): void {
   console.log(theme.text("  Usage:"));
   console.log(theme.textSecondary(`    ff mcp ${config.id} [target-dir] [options]`));
   console.log();
+  console.log(theme.text("  Always configures MCP for both Cursor (.cursor/mcp.json) and VS Code (.vscode/mcp.json)."));
+  console.log();
   console.log(theme.text("  Options:"));
-  console.log(`    ${theme.command("--target, -t")} ${theme.textSecondary("<cursor|copilot|both>")}  Target platform`);
-  console.log(`    ${theme.command("--force, -f")}                           ${theme.textSecondary("Overwrite existing entries")}`);
-  console.log(`    ${theme.command("--help, -h")}                            ${theme.textSecondary("Show this help")}`);
+  console.log(`    ${theme.command("--force, -f")}  ${theme.textSecondary("Overwrite existing entries")}`);
+  console.log(`    ${theme.command("--help, -h")}   ${theme.textSecondary("Show this help")}`);
   console.log();
 
   if (config.mcp) {

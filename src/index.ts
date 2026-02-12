@@ -172,9 +172,15 @@ function handleGlobalStatus(): void {
     for (const wf of workflows) {
       const entry = readWorkflowManifest(cwd, wf.id);
       if (entry) {
+        const platformLabel =
+          entry.platform === "both"
+            ? "Cursor + Copilot"
+            : entry.platform === "cursor"
+              ? "Cursor"
+              : "Copilot";
         lines.push(
           `  ${theme.textSuccess("\u2713")} ${theme.text(wf.name)}` +
-          `  ${theme.textSecondary(entry.platform)}` +
+          `  ${theme.textSecondary(platformLabel)}` +
           `  ${theme.textMuted(entry.commitSha.slice(0, 8))}`
         );
       } else {
@@ -280,13 +286,13 @@ function printHelp(): void {
     theme.textSecondary("    ff dev                              # Open dev workflow menu")
   );
   console.log(
-    theme.textSecondary("    ff install dev --target cursor      # Install dev for Cursor")
+    theme.textSecondary("    ff install dev                      # Install dev workflow")
   );
   console.log(
     theme.textSecondary("    ff update dev                       # Update dev workflow")
   );
   console.log(
-    theme.textSecondary("    ff mcp dev --target both            # Setup MCP for dev")
+    theme.textSecondary("    ff mcp dev                          # Setup MCP servers")
   );
   console.log(
     theme.textSecondary("    ff workflows                        # List all workflows")

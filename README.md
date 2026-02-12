@@ -309,20 +309,14 @@ ff [command] [workflow] [options]
 
 ### install
 
-Install a workflow into a target repository.
+Install a workflow into a target repository. Always installs entry points for both Cursor IDE and VS Code (GitHub Copilot).
 
 ```bash
-# Install dev workflow (prompts for platform and directory)
+# Install dev workflow (prompts for directory)
 ff install dev
 
-# Install for Cursor IDE in current directory
-ff install dev --target cursor
-
-# Install for GitHub Copilot in current directory
-ff install dev --target copilot
-
 # Install in a specific directory
-ff install dev /path/to/repo -t cursor
+ff install dev /path/to/repo
 
 # Force reinstall
 ff install dev --force
@@ -375,20 +369,11 @@ ff verify /path/to/repo
 
 ### mcp
 
-Configure Model Context Protocol (MCP) servers for a specific workflow.
+Configure Model Context Protocol (MCP) servers for a specific workflow. Always configures both Cursor (`.cursor/mcp.json`) and VS Code (`.vscode/mcp.json`).
 
 ```bash
-# Interactive MCP setup for dev workflow
+# MCP setup for dev workflow (both Cursor + VS Code)
 ff mcp dev
-
-# Setup for Cursor only
-ff mcp dev -t cursor
-
-# Setup for VS Code / Copilot only
-ff mcp dev -t copilot
-
-# Setup for both platforms
-ff mcp dev -t both
 
 # Force overwrite existing entries
 ff mcp dev --force

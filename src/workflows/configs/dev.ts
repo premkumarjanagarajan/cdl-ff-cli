@@ -19,7 +19,7 @@ export const devWorkflow: WorkflowConfig = {
   source: {
     owner: "BetssonGroup",
     repo: "aidlc-workflow",
-    branch: "main",
+    branch: "release",
   },
 
   install: {

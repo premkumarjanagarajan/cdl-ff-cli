@@ -99,7 +99,7 @@ export function renderMenu(
     theme.border(chars.topLeft + chars.horizontal + " ") +
     theme.borderLabel(title) +
     theme.border(
-      " " + chars.horizontal.repeat(Math.max(remaining - 1, 0)) + chars.topRight
+      " " + chars.horizontal.repeat(Math.max(remaining, 0)) + chars.topRight
     );
 
   // ── Content lines ───────────────────────────────────
