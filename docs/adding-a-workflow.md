@@ -46,10 +46,11 @@ graph LR
 Every workflow in Fluid Flow CLI is defined by a single `WorkflowConfig` object. The system uses this config to:
 
 1. **Show the workflow in menus** -- main menu, sub-menus, help text, and status output
-2. **Clone the right source repo** -- each workflow can pull from a different GitHub repository
-3. **Install the right files** -- directories, entry points, and scripts are all config-driven
-4. **Configure MCP servers** -- each workflow has its own MCP server definitions in a JSON file
-5. **Track installations** -- the manifest records which workflows are installed per project
+2. **Clone the right source repo** -- each workflow can pull from a different GitHub repository and branch
+3. **Install the right files** -- directories are auto-discovered from the repo by default, or can be explicitly listed
+4. **Install both IDE entry points** -- every install sets up both Cursor IDE and VS Code (GitHub Copilot) automatically
+5. **Configure MCP servers** -- each workflow has its own MCP server definitions in a JSON file, always configured for both IDEs
+6. **Track installations** -- the manifest records which workflows are installed per project
 
 **Files you will create or modify:**
 
@@ -66,7 +67,7 @@ Every workflow in Fluid Flow CLI is defined by a single `WorkflowConfig` object.
 Before adding a workflow, you need:
 
 1. **A source repository** on GitHub containing the workflow files (e.g. `BetssonGroup/product-workflow`)
-2. **An entry point file** in that repo for at least one platform (Cursor `.mdc` file or Copilot instructions)
+2. **An entry point file** in that repo (a Cursor `.mdc` file — it will be installed for Cursor and transformed for Copilot automatically)
 3. **Node.js >= 20** and the ff-cli repo cloned locally
 
 ---
@@ -79,22 +80,24 @@ Your source repository should contain the workflow files you want to install int
 
 ```
 your-workflow-repo/
-├── <workflow-dir>/          # Directory that gets copied (e.g. "product-workflow/")
+├── <directories>/          # Any directories — all are copied by default
 │   ├── ...workflow files...
 │   └── ...
 └── .cursor/
     └── rules/
-        └── <rule>.mdc       # Entry point for Cursor IDE
+        └── <rule>.mdc       # Entry point (used for both Cursor and Copilot)
 ```
 
-**Key decisions:**
+**Key points:**
 
 | Decision | Example | Notes |
 |----------|---------|-------|
-| Workflow directory name | `product-workflow` | Gets copied into the target project root |
-| Entry point file | `.cursor/rules/product.mdc` | Cursor reads `.mdc` files automatically |
-| Branch | `main` | Which branch to clone from |
+| Entry point file | `.cursor/rules/product.mdc` | Installed for Cursor, transformed for Copilot |
+| Branch | `release` | Which branch to clone from |
+| Directories | All by default | Omit `directories` to auto-copy everything from the repo |
 | Executable files | `.sh` scripts | Will be `chmod +x` on install |
+
+> **Auto-discovery:** By default, every directory at the repo root is copied into the target project (excluding `.git`, `.gitignore`, `.github`, `README.md`, and `LICENSE`). You only need to specify `directories` if you want to limit what gets copied.
 
 ### Step 2: Create the Workflow Config
 
@@ -124,15 +127,15 @@ export const <id>Workflow: WorkflowConfig = {
   source: {
     owner: "BetssonGroup",              // GitHub org or user
     repo: "<repo-name>",               // Repository name
-    branch: "main",                     // Branch to clone
+    branch: "release",                  // Branch to clone
   },
 
   // ── Installation ──────────────────────────────────────
   install: {
-    // Directories from the source repo to copy into the target project
-    directories: ["<workflow-dir>"],
+    // Omit `directories` to auto-discover all directories from the repo.
+    // Or list specific ones: directories: ["workflow-dir"],
 
-    // Platform-specific entry points
+    // Entry points — both Cursor and Copilot are always installed
     entryPoints: {
       cursor: {
         source: ".cursor/rules/<rule>.mdc",          // Path in source repo
@@ -172,7 +175,7 @@ export const <id>Workflow: WorkflowConfig = {
 
 If your workflow includes MCP server setup (`features` includes `"mcp"`), create a JSON file at `mcp-configs/<id>-mcp.json`.
 
-This file defines which MCP servers to configure when users run `ff mcp <id>`.
+This file defines which MCP servers to configure when users run `ff mcp <id>`. MCP is always configured for **both** Cursor (`.cursor/mcp.json`) and VS Code (`.vscode/mcp.json`).
 
 **Template:**
 
@@ -292,14 +295,14 @@ The top-level configuration object. Every field is documented below.
 |----------|------|----------|-------------|
 | `owner` | `string` | Yes | GitHub org or username (e.g. `"BetssonGroup"`) |
 | `repo` | `string` | Yes | Repository name (e.g. `"fluid-flow-ai"`) |
-| `branch` | `string` | Yes | Branch to clone (e.g. `"main"`) |
+| `branch` | `string` | Yes | Branch to clone (e.g. `"release"`) |
 
 ### InstallConfig
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-| `directories` | `string[]` | Yes | Directories from source to copy into target root |
-| `entryPoints` | `{ cursor?, copilot? }` | Yes | Platform-specific entry point files |
+| `directories` | `string[]` | No | Directories from source to copy. **Omit to auto-discover all directories** from the repo (excludes `.git`, `.gitignore`, `.github`, `README.md`, `LICENSE`). |
+| `entryPoints` | `{ cursor?, copilot? }` | Yes | IDE entry point files — both are always installed |
 | `techInstructions` | `TechInstructionsConfig` | No | Copilot path-specific instruction files |
 | `executableExtensions` | `string[]` | No | Extensions to `chmod +x` (default: `[".sh"]`) |
 
@@ -311,14 +314,18 @@ The top-level configuration object. Every field is documented below.
 | `target` | `string` | Yes | Path in the target project (relative to project root) |
 | `transform` | `"copilot"` | No | If set, transforms Cursor format to Copilot format |
 
-**How transforms work:**
+**How entry points work:**
 
-- **No transform (Cursor):** File is copied as-is from source to target
-- **`"copilot"` transform:** Cursor-specific YAML frontmatter is stripped, content is reformatted for GitHub Copilot's `.github/copilot-instructions.md` format
+Both Cursor and Copilot entry points are **always installed** — there is no IDE selection prompt. The install flow:
+
+1. **Cursor:** Copies the `.mdc` file as-is to `.cursor/rules/`
+2. **Copilot:** Transforms the same source, strips Cursor frontmatter, and writes to `.github/`
+3. **Frontmatter cleanup:** Cursor-specific YAML frontmatter is stripped from all `.md` files in copied directories
+4. **Tech instructions** (optional): Creates `.github/instructions/*.instructions.md` for path-specific Copilot guidance
 
 ### TechInstructionsConfig
 
-Only relevant for Copilot installations. Creates `.github/instructions/*.instructions.md` files that provide path-specific instructions to Copilot.
+Only relevant for Copilot. Creates `.github/instructions/*.instructions.md` files that provide path-specific instructions to Copilot.
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -330,6 +337,8 @@ Only relevant for Copilot installations. Creates `.github/instructions/*.instruc
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `configFile` | `string` | Yes | Path to the MCP JSON file, relative to ff-cli package root |
+
+MCP servers are always configured for **both** Cursor (`.cursor/mcp.json`) and VS Code (`.vscode/mcp.json`) — there is no platform selection prompt.
 
 ### WorkflowFeature
 
@@ -382,14 +391,14 @@ graph TD
     end
 
     subgraph Modules ["Reusable Modules"]
-        FI["FileInstaller<br/>copies directories"]
-        EP["EntryPointInstaller<br/>platform entry points"]
-        MI["McpInstaller<br/>reads JSON config"]
+        FI["FileInstaller<br/>auto-discovers + copies dirs"]
+        EP["EntryPointInstaller<br/>both Cursor + Copilot"]
+        MI["McpInstaller<br/>both .cursor + .vscode"]
         MAN["ManifestManager<br/>tracks installations"]
     end
 
     subgraph External ["External"]
-        GH["GitHub Source Repo"]
+        GH["GitHub Source Repo<br/>(release branch)"]
         MCP_JSON["mcp-configs/product-mcp.json"]
         TARGET["Target Project"]
     end
@@ -443,11 +452,11 @@ export const productWorkflow: WorkflowConfig = {
   source: {
     owner: "BetssonGroup",
     repo: "product-workflow",
-    branch: "main",
+    branch: "release",
   },
 
   install: {
-    directories: ["product-workflow"],
+    // No `directories` — auto-discovers all directories from the repo
 
     entryPoints: {
       cursor: {
@@ -533,8 +542,7 @@ ff update product                     # Updates to latest
 Use this checklist when adding a new workflow:
 
 - [ ] Source repository exists on GitHub and is accessible
-- [ ] Source repo has at least one entry point file (`.cursor/rules/<name>.mdc`)
-- [ ] Source repo has the directory/directories listed in `install.directories`
+- [ ] Source repo has an entry point file (`.cursor/rules/<name>.mdc`)
 - [ ] Created `src/workflows/configs/<id>.ts` with a valid `WorkflowConfig`
 - [ ] Created `mcp-configs/<id>-mcp.json` (if workflow has MCP feature)
 - [ ] Added import + array entry in `src/workflows/registry.ts`
@@ -559,13 +567,17 @@ export const minimalWorkflow: WorkflowConfig = {
   id: "minimal",
   name: "Minimal Workflow",
   description: "A workflow without MCP",
-  source: { owner: "BetssonGroup", repo: "minimal-workflow", branch: "main" },
+  source: { owner: "BetssonGroup", repo: "minimal-workflow", branch: "release" },
   install: {
-    directories: ["workflow-files"],
     entryPoints: {
       cursor: {
         source: ".cursor/rules/minimal.mdc",
         target: ".cursor/rules/minimal.mdc",
+      },
+      copilot: {
+        source: ".cursor/rules/minimal.mdc",
+        target: ".github/minimal-instructions.md",
+        transform: "copilot",
       },
     },
   },
@@ -573,23 +585,22 @@ export const minimalWorkflow: WorkflowConfig = {
 };
 ```
 
-### Can I support only Cursor or only Copilot?
+### Do I need to list directories explicitly?
 
-Yes. Only define the entry points you need:
+No. By default, the installer auto-discovers all directories at the root of the source repository (excluding `.git`, `.gitignore`, `.github`, `README.md`, and `LICENSE`). This means new directories added to the source repo are picked up automatically on the next install/update.
+
+If you only want a subset of directories, you can specify them explicitly:
 
 ```typescript
-// Cursor only
-entryPoints: {
-  cursor: { source: "...", target: "..." },
-},
-
-// Copilot only
-entryPoints: {
-  copilot: { source: "...", target: "...", transform: "copilot" },
+install: {
+  directories: ["only-this-dir", "and-this-one"],
+  // ...
 },
 ```
 
-The install flow will prompt the user to choose a platform, and if the selected platform has no entry point configured, a warning is shown.
+### Are both Cursor and VS Code always installed?
+
+Yes. Every install and update sets up entry points for **both** Cursor IDE and VS Code (GitHub Copilot) automatically. There is no IDE selection prompt. Similarly, MCP servers are always configured for both `.cursor/mcp.json` and `.vscode/mcp.json`.
 
 ### Can two workflows install into the same project?
 
@@ -599,17 +610,17 @@ Yes. The manifest (`.fluid-flow.json`) tracks each workflow independently:
 {
   "version": 2,
   "workflows": {
-    "dev": { "platform": "cursor", "commitSha": "abc...", ... },
-    "product": { "platform": "cursor", "commitSha": "def...", ... }
+    "dev": { "platform": "both", "commitSha": "abc...", ... },
+    "product": { "platform": "both", "commitSha": "def...", ... }
   }
 }
 ```
 
-Each workflow can have different platforms, different source repos, and different installed paths.
+Each workflow can have different source repos and different installed paths.
 
 ### Can two workflows share the same source repository?
 
-Yes. Just point both configs to the same `source.owner` / `source.repo` but use different `install.directories`.
+Yes. Just point both configs to the same `source.owner` / `source.repo` but use different `install.directories` to control which parts each workflow installs.
 
 ### What if my workflow needs a custom module or behavior?
 
