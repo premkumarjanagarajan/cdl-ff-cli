@@ -240,8 +240,7 @@ function Write-NextSteps {
     Write-Host "     ff" -ForegroundColor White
     Write-Host ""
     Write-Host "  3. Or install directly:" -ForegroundColor White
-    Write-Host "     ff install --target cursor" -ForegroundColor White
-    Write-Host "     ff install --target copilot" -ForegroundColor White
+    Write-Host "     ff install dev" -ForegroundColor White
     Write-Host ""
     Write-Host "  For help:  ff --help" -ForegroundColor DarkGray
     Write-Host "  Docs:      https://github.com/$RepoOwner/$RepoName#readme" -ForegroundColor DarkGray

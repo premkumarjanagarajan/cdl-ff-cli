@@ -115,6 +115,7 @@ export function updateManifestEntry(
     commitSha: string;
     branch: string;
     installedPaths: string[];
+    platform?: Platform;
   }
 ): WorkflowManifestEntry {
   return {
@@ -123,6 +124,7 @@ export function updateManifestEntry(
     branch: opts.branch,
     updatedAt: new Date().toISOString(),
     installedPaths: opts.installedPaths,
+    ...(opts.platform ? { platform: opts.platform } : {}),
   };
 }
 

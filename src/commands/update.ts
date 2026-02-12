@@ -89,7 +89,6 @@ export async function runUpdateCLI(args: string[]): Promise<void> {
     const latestSha = getRemoteHeadSha(entry.branch, config.source);
 
     console.log();
-    console.log(`  ${theme.textSecondary("Platform:")}   ${theme.text(entry.platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`);
     console.log(`  ${theme.textSecondary("Current:")}    ${theme.text(entry.commitSha.slice(0, 8))}`);
     console.log(`  ${theme.textSecondary("Latest:")}     ${theme.text(latestSha?.slice(0, 8) ?? "unknown")}`);
 
@@ -108,7 +107,6 @@ export async function runUpdateCLI(args: string[]): Promise<void> {
   const previousSha = entry.commitSha;
 
   console.log();
-  console.log(`  ${theme.textSecondary("Platform:")} ${theme.text(entry.platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`);
   console.log(`  ${theme.textSecondary("Current:")}  ${theme.text(previousSha.slice(0, 8))}`);
   console.log();
 
@@ -130,7 +128,7 @@ export async function runUpdateCLI(args: string[]): Promise<void> {
 
     try {
       const fileResult = await updateFiles(config, targetDir, source.localPath);
-      const entryResult = await installEntryPoint(config, entry.platform, targetDir, source.localPath);
+      const entryResult = await installEntryPoint(config, targetDir, source.localPath);
 
       const installedPaths = [...fileResult.installedPaths, ...entryResult.installedPaths];
       const totalFiles = fileResult.filesCopied + entryResult.filesCopied;
@@ -139,6 +137,7 @@ export async function runUpdateCLI(args: string[]): Promise<void> {
         commitSha: source.commitSha,
         branch: source.branch,
         installedPaths,
+        platform: "both",
       });
       writeWorkflowManifest(targetDir, config.id, updatedEntry);
 

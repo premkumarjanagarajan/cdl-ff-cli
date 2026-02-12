@@ -240,7 +240,7 @@ cd ~/.ff-cli && npm install && npm run build && npm link
 
 | Workflow | ID | Source Repository | Description |
 |----------|----|-------------------|-------------|
-| **Development Workflow** | `dev` | `BetssonGroup/aidlc-workflow` | AI-powered development lifecycle orchestration |
+| **Development Workflow** | `dev` | `BetssonGroup/fluid-flow-ai` | AI-powered development lifecycle orchestration |
 
 > More workflows (Product, Design, etc.) can be added by creating configuration files. See [Adding a New Workflow](#adding-a-new-workflow).
 
@@ -309,20 +309,14 @@ ff [command] [workflow] [options]
 
 ### install
 
-Install a workflow into a target repository.
+Install a workflow into a target repository. Always installs entry points for both Cursor IDE and VS Code (GitHub Copilot).
 
 ```bash
-# Install dev workflow (prompts for platform and directory)
+# Install dev workflow (prompts for directory)
 ff install dev
 
-# Install for Cursor IDE in current directory
-ff install dev --target cursor
-
-# Install for GitHub Copilot in current directory
-ff install dev --target copilot
-
 # Install in a specific directory
-ff install dev /path/to/repo -t cursor
+ff install dev /path/to/repo
 
 # Force reinstall
 ff install dev --force
@@ -375,20 +369,11 @@ ff verify /path/to/repo
 
 ### mcp
 
-Configure Model Context Protocol (MCP) servers for a specific workflow.
+Configure Model Context Protocol (MCP) servers for a specific workflow. Always configures both Cursor (`.cursor/mcp.json`) and VS Code (`.vscode/mcp.json`).
 
 ```bash
-# Interactive MCP setup for dev workflow
+# MCP setup for dev workflow (both Cursor + VS Code)
 ff mcp dev
-
-# Setup for Cursor only
-ff mcp dev -t cursor
-
-# Setup for VS Code / Copilot only
-ff mcp dev -t copilot
-
-# Setup for both platforms
-ff mcp dev -t both
 
 # Force overwrite existing entries
 ff mcp dev --force
@@ -566,7 +551,7 @@ The `.fluid-flow.json` manifest supports multiple workflows:
       "platform": "cursor",
       "commitSha": "abc1234...",
       "branch": "main",
-      "sourceRepo": "BetssonGroup/aidlc-workflow",
+      "sourceRepo": "BetssonGroup/fluid-flow-ai",
       "installedAt": "2025-01-15T10:30:00.000Z",
       "updatedAt": "2025-01-20T14:00:00.000Z",
       "installedPaths": ["main-workflow", ".cursor/rules/workflow.mdc"]
@@ -660,7 +645,7 @@ npm link
 
 </details>
 
-### "Failed to clone BetssonGroup/aidlc-workflow"
+### "Failed to clone BetssonGroup/fluid-flow-ai"
 
 This means the CLI can't access the workflow source repository. Solutions:
 
@@ -671,12 +656,12 @@ This means the CLI can't access the workflow source repository. Solutions:
 
 2. **Verify repository access:**
    ```bash
-   gh repo view BetssonGroup/aidlc-workflow
+   gh repo view BetssonGroup/fluid-flow-ai
    ```
 
 3. **Check Git SSH/HTTPS configuration:**
    ```bash
-   git ls-remote https://github.com/BetssonGroup/aidlc-workflow.git
+   git ls-remote https://github.com/BetssonGroup/fluid-flow-ai.git
    ```
 
 ### "Cannot access BetssonGroup/cdl-ff-cli"
@@ -818,7 +803,7 @@ graph TD
     end
     
     subgraph Sources["Source Repos"]
-        SR1["BetssonGroup/aidlc-workflow"]
+        SR1["BetssonGroup/fluid-flow-ai"]
         SR2["BetssonGroup/product-workflow (future)"]
     end
     

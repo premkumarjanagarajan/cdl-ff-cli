@@ -41,12 +41,12 @@ export function renderBox(lines: string[], options: BoxOptions = {}): string {
   let topBorder: string;
   if (title) {
     const label = ` ${title} `;
-    const remaining = innerWidth - label.length - 1; // -1 for the space after ╭─
+    const remaining = innerWidth - label.length - 1; // -1 for the leading ─ after ╭
     topBorder =
       theme.border(chars.topLeft + chars.horizontal + " ") +
       theme.borderLabel(title) +
       theme.border(
-        " " + chars.horizontal.repeat(Math.max(remaining - 1, 0)) + chars.topRight
+        " " + chars.horizontal.repeat(Math.max(remaining, 0)) + chars.topRight
       );
   } else {
     topBorder = theme.border(

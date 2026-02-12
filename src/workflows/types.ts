@@ -44,9 +44,9 @@ export type WorkflowFeature = "install" | "update" | "verify" | "mcp";
 export interface SourceConfig {
   /** Repository owner (e.g. "BetssonGroup"). */
   owner: string;
-  /** Repository name (e.g. "aidlc-workflow"). */
+  /** Repository name (e.g. "fluid-flow-ai"). */
   repo: string;
-  /** Branch to clone from (e.g. "main"). */
+  /** Branch to clone from (e.g. "release"). */
   branch: string;
 }
 
@@ -102,7 +102,7 @@ export interface McpConfig {
 // -- Manifest Types -----------------------------------------------------------
 
 /** Supported target platforms for installation. */
-export type Platform = "cursor" | "copilot";
+export type Platform = "cursor" | "copilot" | "both";
 
 /** MCP target platforms. */
 export type McpTarget = "cursor" | "copilot" | "both";

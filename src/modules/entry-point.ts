@@ -1,7 +1,8 @@
 /**
  * Entry Point Installer Module
  *
- * Installs platform-specific entry point files (Cursor rules, Copilot instructions).
+ * Installs IDE entry point files for both Cursor and VS Code (GitHub Copilot).
+ * Always installs both platforms — no user choice required.
  * Driven by WorkflowConfig.install.entryPoints configuration.
  */
 
@@ -21,7 +22,7 @@ import {
   transformTechInstruction,
   TECH_INSTRUCTION_MAPPINGS,
 } from "../installer/copilot-adapter.js";
-import type { WorkflowConfig, Platform } from "../workflows/types.js";
+import type { WorkflowConfig } from "../workflows/types.js";
 
 export interface EntryPointResult {
   filesCopied: number;
@@ -29,11 +30,39 @@ export interface EntryPointResult {
 }
 
 /**
- * Install the platform-specific entry point for a workflow.
+ * Install entry points for both Cursor and VS Code (GitHub Copilot).
+ * Installs the Cursor rule (.mdc) and the Copilot instructions (.md) in one pass.
  */
 export async function installEntryPoint(
   config: WorkflowConfig,
-  platform: Platform,
+  targetDir: string,
+  clonePath: string
+): Promise<EntryPointResult> {
+  const installedPaths: string[] = [];
+  let filesCopied = 0;
+
+  // Install Cursor entry point
+  const cursorResult = await installSinglePlatformEntry(config, "cursor", targetDir, clonePath);
+  filesCopied += cursorResult.filesCopied;
+  installedPaths.push(...cursorResult.installedPaths);
+
+  // Install Copilot entry point (with transforms)
+  const copilotResult = await installSinglePlatformEntry(config, "copilot", targetDir, clonePath);
+  filesCopied += copilotResult.filesCopied;
+  installedPaths.push(...copilotResult.installedPaths);
+
+  return { filesCopied, installedPaths };
+}
+
+// -- Single-platform installer (private) --------------------------------------
+
+/**
+ * Install the entry point for a single platform.
+ * Called internally for each platform — not exported.
+ */
+async function installSinglePlatformEntry(
+  config: WorkflowConfig,
+  platform: "cursor" | "copilot",
   targetDir: string,
   clonePath: string
 ): Promise<EntryPointResult> {

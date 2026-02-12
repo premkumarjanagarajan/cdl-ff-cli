@@ -23,7 +23,7 @@ import {
   getManifestFileName,
 } from "../modules/manifest.js";
 import { setupWorkflowMcp, analyzeAllWorkflowTargets, loadMcpServers } from "../modules/mcp-installer.js";
-import type { WorkflowConfig, Platform, McpTarget } from "../workflows/types.js";
+import type { WorkflowConfig } from "../workflows/types.js";
 import type { MenuItem } from "../ui/menu.js";
 
 // -- Sub-menu -----------------------------------------------------------------
@@ -118,31 +118,7 @@ export async function showWorkflowMenu(config: WorkflowConfig): Promise<void> {
 // -- Install ------------------------------------------------------------------
 
 async function handleInstall(config: WorkflowConfig): Promise<void> {
-  // Step 1: Choose platform
-  const ideChoice = await promptMenu(
-    [
-      {
-        key: "cursor",
-        label: "Cursor IDE",
-        description: ".cursor/rules/workflow.mdc",
-        hint: "Installs the Cursor rule automatically",
-      },
-      {
-        key: "copilot",
-        label: "GitHub Copilot",
-        description: ".github/copilot-instructions.md",
-        hint: "Transforms for Copilot + creates .instructions.md files",
-      },
-    ],
-    {
-      title: "Target IDE",
-      prompt: "Select target platform",
-    }
-  );
-
-  const platform = ideChoice.key as Platform;
-
-  // Step 2: Choose target directory
+  // Step 1: Choose target directory
   const cwd = process.cwd();
   console.log();
   const targetInput = await promptDirectory(shortenPath(cwd));
@@ -155,7 +131,7 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
     return;
   }
 
-  // Step 3: Check if already installed
+  // Step 2: Check if already installed
   if (isWorkflowInstalled(targetDir, config.id)) {
     const entry = readWorkflowManifest(targetDir, config.id);
     console.log();
@@ -164,7 +140,7 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
     );
     console.log(
       theme.textSecondary(
-        `  Platform: ${entry?.platform}  |  Commit: ${entry?.commitSha?.slice(0, 8)}`
+        `  Commit: ${entry?.commitSha?.slice(0, 8)}`
       )
     );
     console.log(
@@ -174,7 +150,7 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
     return;
   }
 
-  // Step 4: Show install plan
+  // Step 3: Show install plan
   const repo = getRepoInfo(config.source);
   console.log();
   console.log(
@@ -183,9 +159,9 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
         "",
         theme.brandBold(`  Installing ${config.name}`),
         "",
-        `  ${theme.textSecondary("Source:")}   ${theme.path(repo.fullName)}`,
-        `  ${theme.textSecondary("Target:")}   ${theme.path(shortenPath(targetDir))}`,
-        `  ${theme.textSecondary("Platform:")} ${theme.highlight(platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`,
+        `  ${theme.textSecondary("Source:")}    ${theme.path(repo.fullName)}`,
+        `  ${theme.textSecondary("Target:")}    ${theme.path(shortenPath(targetDir))}`,
+        `  ${theme.textSecondary("Platforms:")} ${theme.highlight("Cursor IDE + GitHub Copilot")}`,
         "",
       ],
       { title: "Install Plan", minWidth: 55 }
@@ -193,7 +169,7 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
   );
   console.log();
 
-  // Step 5: Execute install
+  // Step 4: Execute install
   try {
     console.log(`  ${theme.brandBright("\u2192")} ${theme.text("Downloading latest from GitHub...")}`);
     const source = await cloneSource(config.source.branch, config.source);
@@ -202,8 +178,8 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
       // Copy workflow files
       const fileResult = await installFiles(config, targetDir, source.localPath);
 
-      // Install entry point
-      const entryResult = await installEntryPoint(config, platform, targetDir, source.localPath);
+      // Install entry points for both Cursor and Copilot
+      const entryResult = await installEntryPoint(config, targetDir, source.localPath);
 
       // Combine installed paths
       const installedPaths = [...fileResult.installedPaths, ...entryResult.installedPaths];
@@ -211,7 +187,7 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
 
       // Write manifest
       const manifestEntry = createManifestEntry({
-        platform,
+        platform: "both",
         commitSha: source.commitSha,
         branch: source.branch,
         sourceRepo: repo.fullName,
@@ -232,19 +208,14 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
         `  ${theme.textSecondary("Commit:")}        ${theme.text(source.commitSha.slice(0, 8))}`
       );
       console.log(
-        `  ${theme.textSecondary("Platform:")}      ${theme.text(platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`
+        `  ${theme.textSecondary("Platforms:")}     ${theme.text("Cursor IDE + GitHub Copilot")}`
       );
       console.log();
 
-      if (platform === "cursor") {
-        console.log(theme.hint("  Next steps:"));
-        console.log(theme.textSecondary("  1. Open this project in Cursor \u2014 the workflow rule activates automatically"));
-        console.log(theme.textSecondary("  2. Make a development request in chat to trigger the workflow"));
-      } else {
-        console.log(theme.hint("  Next steps:"));
-        console.log(theme.textSecondary("  1. The instructions are loaded automatically by GitHub Copilot"));
-        console.log(theme.textSecondary("  2. Make a development request in Copilot Chat to trigger the workflow"));
-      }
+      console.log(theme.hint("  Next steps:"));
+      console.log(theme.textSecondary("  1. Open this project in Cursor \u2014 the workflow rule activates automatically"));
+      console.log(theme.textSecondary("  2. In VS Code, GitHub Copilot loads the instructions automatically"));
+      console.log(theme.textSecondary("  3. Make a development request in either IDE to trigger the workflow"));
 
       console.log();
       console.log(
@@ -293,7 +264,6 @@ async function handleUpdate(config: WorkflowConfig): Promise<void> {
     return;
   }
 
-  const platform = entry.platform;
   const previousSha = entry.commitSha;
 
   // Check for updates
@@ -315,7 +285,7 @@ async function handleUpdate(config: WorkflowConfig): Promise<void> {
 
   try {
     const fileResult = await updateFiles(config, targetDir, source.localPath);
-    const entryResult = await installEntryPoint(config, platform, targetDir, source.localPath);
+    const entryResult = await installEntryPoint(config, targetDir, source.localPath);
 
     const installedPaths = [...fileResult.installedPaths, ...entryResult.installedPaths];
     const totalFiles = fileResult.filesCopied + entryResult.filesCopied;
@@ -324,6 +294,7 @@ async function handleUpdate(config: WorkflowConfig): Promise<void> {
       commitSha: source.commitSha,
       branch: source.branch,
       installedPaths,
+      platform: "both",
     });
     writeWorkflowManifest(targetDir, config.id, updatedEntry);
 
@@ -389,13 +360,10 @@ async function handleMcpSetup(config: WorkflowConfig): Promise<void> {
     return;
   }
 
-  // Prompt for MCP target platform
-  const target = await promptMcpTarget();
-
-  // Run setup
+  // Run setup — always configure both Cursor and VS Code
   try {
     const result = await setupWorkflowMcp(config, {
-      target,
+      target: "both",
       targetDir,
     });
     printMcpSuccess(result);
@@ -416,6 +384,12 @@ function handleStatus(config: WorkflowConfig): void {
 
   console.log();
   if (entry) {
+    const platformLabel =
+      entry.platform === "both"
+        ? "Cursor IDE + GitHub Copilot"
+        : entry.platform === "cursor"
+          ? "Cursor IDE"
+          : "GitHub Copilot";
     console.log(
       renderBox(
         [
@@ -424,7 +398,7 @@ function handleStatus(config: WorkflowConfig): void {
           "",
           `  ${theme.textSecondary("Directory:")}  ${theme.path(shortenPath(cwd))}`,
           `  ${theme.textSecondary("Installed:")}  ${theme.textSuccess("Yes")}`,
-          `  ${theme.textSecondary("Platform:")}   ${theme.text(entry.platform === "cursor" ? "Cursor IDE" : "GitHub Copilot")}`,
+          `  ${theme.textSecondary("Platforms:")}  ${theme.text(platformLabel)}`,
           `  ${theme.textSecondary("Commit:")}     ${theme.text(entry.commitSha.slice(0, 8))}`,
           `  ${theme.textSecondary("Updated:")}    ${theme.text(new Date(entry.updatedAt).toLocaleDateString())}`,
           "",
@@ -459,6 +433,7 @@ async function offerMcpSetup(config: WorkflowConfig, targetDir: string): Promise
   console.log();
   console.log(theme.text("  Would you also like to configure MCP servers for this project?"));
   console.log(theme.textSecondary("  This sets up Atlassian, GitHub, filesystem, and other MCP tools."));
+  console.log(theme.textSecondary("  MCP will be configured for both Cursor and VS Code."));
   console.log();
 
   const wantsMcp = await promptConfirm("Configure MCP servers?");
@@ -470,10 +445,8 @@ async function offerMcpSetup(config: WorkflowConfig, targetDir: string): Promise
     return;
   }
 
-  const target = await promptMcpTarget();
-
   try {
-    const result = await setupWorkflowMcp(config, { target, targetDir });
+    const result = await setupWorkflowMcp(config, { target: "both", targetDir });
     printMcpSuccess(result);
   } catch (err) {
     console.log();
@@ -482,33 +455,6 @@ async function offerMcpSetup(config: WorkflowConfig, targetDir: string): Promise
     );
     console.log();
   }
-}
-
-async function promptMcpTarget(): Promise<McpTarget> {
-  const choice = await promptMenu(
-    [
-      {
-        key: "cursor",
-        label: "Cursor",
-        description: ".cursor/mcp.json",
-      },
-      {
-        key: "copilot",
-        label: "VS Code / Copilot",
-        description: ".vscode/mcp.json + settings",
-      },
-      {
-        key: "both",
-        label: "Both",
-        description: "Configure both platforms",
-      },
-    ],
-    {
-      title: "MCP Target",
-      prompt: "Select target platform",
-    }
-  );
-  return choice.key as McpTarget;
 }
 
 function printMcpSuccess(result: import("../workflows/types.js").McpSetupResult): void {

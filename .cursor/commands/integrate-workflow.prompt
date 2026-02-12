@@ -131,8 +131,8 @@ Then show the commands the user can run to test:
 ```bash
 ff workflows                          # Should list the new workflow
 ff <id>                               # Should open the workflow sub-menu
-ff install <id> --target cursor       # Full install test
-ff mcp <id> -t both                   # MCP setup test (if applicable)
+ff install <id>                       # Full install test (both Cursor + Copilot)
+ff mcp <id>                           # MCP setup test (if applicable)
 ```
 
 ---
