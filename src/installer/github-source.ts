@@ -6,7 +6,7 @@ import type { SourceConfig } from "../workflows/types.js";
 
 /** Default source repository (legacy fallback). */
 const DEFAULT_OWNER = "BetssonGroup";
-const DEFAULT_NAME = "aidlc-workflow";
+const DEFAULT_NAME = "fluid-flow-ai";
 
 function resolveSource(source?: SourceConfig) {
   const owner = source?.owner ?? DEFAULT_OWNER;

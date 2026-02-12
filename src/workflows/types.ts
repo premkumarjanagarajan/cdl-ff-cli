@@ -44,7 +44,7 @@ export type WorkflowFeature = "install" | "update" | "verify" | "mcp";
 export interface SourceConfig {
   /** Repository owner (e.g. "BetssonGroup"). */
   owner: string;
-  /** Repository name (e.g. "aidlc-workflow"). */
+  /** Repository name (e.g. "fluid-flow-ai"). */
   repo: string;
   /** Branch to clone from (e.g. "release"). */
   branch: string;

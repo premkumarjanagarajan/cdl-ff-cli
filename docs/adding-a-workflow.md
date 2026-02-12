@@ -291,7 +291,7 @@ The top-level configuration object. Every field is documented below.
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `owner` | `string` | Yes | GitHub org or username (e.g. `"BetssonGroup"`) |
-| `repo` | `string` | Yes | Repository name (e.g. `"aidlc-workflow"`) |
+| `repo` | `string` | Yes | Repository name (e.g. `"fluid-flow-ai"`) |
 | `branch` | `string` | Yes | Branch to clone (e.g. `"main"`) |
 
 ### InstallConfig

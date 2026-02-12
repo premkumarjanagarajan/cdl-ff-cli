@@ -2,7 +2,7 @@
  * Development Workflow Configuration
  *
  * AI-powered development lifecycle orchestration.
- * Source: BetssonGroup/aidlc-workflow
+ * Source: BetssonGroup/fluid-flow-ai
  *
  * This was the original (and only) workflow before the multi-workflow
  * architecture. All hardcoded values from installer/index.ts have been
@@ -18,7 +18,7 @@ export const devWorkflow: WorkflowConfig = {
 
   source: {
     owner: "BetssonGroup",
-    repo: "aidlc-workflow",
+    repo: "fluid-flow-ai",
     branch: "release",
   },
 
