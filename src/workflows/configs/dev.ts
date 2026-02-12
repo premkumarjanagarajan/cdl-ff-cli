@@ -23,7 +23,7 @@ export const devWorkflow: WorkflowConfig = {
   },
 
   install: {
-    directories: ["main-workflow"],
+    // No explicit directories — auto-discovers all directories from the repo
 
     entryPoints: {
       cursor: {

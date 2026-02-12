@@ -4,8 +4,12 @@
  * Generic module that copies workflow files from a cloned source into
  * the target repository. Driven entirely by WorkflowConfig -- no
  * hardcoded paths.
+ *
+ * When `config.install.directories` is omitted or empty, all directories
+ * from the repo root are copied automatically (excluding .git and metadata).
  */
 
+import fs from "node:fs";
 import path from "node:path";
 import { theme } from "../ui/theme.js";
 import {
@@ -16,9 +20,32 @@ import {
 } from "../installer/file-ops.js";
 import type { WorkflowConfig } from "../workflows/types.js";
 
+/** Entries to always skip when auto-discovering directories. */
+const IGNORED_ENTRIES = new Set([".git", ".gitignore", ".github", "README.md", "LICENSE"]);
+
 export interface FileInstallResult {
   filesCopied: number;
   installedPaths: string[];
+}
+
+/**
+ * Resolve which directories to install.
+ * If explicit directories are configured, use those.
+ * Otherwise, auto-discover all directories from the cloned repo root.
+ */
+export function resolveDirectories(config: WorkflowConfig, clonePath: string): string[] {
+  const explicit = config.install.directories;
+  if (explicit && explicit.length > 0) {
+    return explicit;
+  }
+
+  // Auto-discover: all directories at the repo root, minus ignored entries
+  return fs.readdirSync(clonePath)
+    .filter((name) => {
+      if (IGNORED_ENTRIES.has(name)) return false;
+      const fullPath = path.join(clonePath, name);
+      return fs.statSync(fullPath).isDirectory();
+    });
 }
 
 /**
@@ -29,10 +56,11 @@ export async function installFiles(
   targetDir: string,
   clonePath: string
 ): Promise<FileInstallResult> {
+  const directories = resolveDirectories(config, clonePath);
   const installedPaths: string[] = [];
   let totalFiles = 0;
 
-  for (const dir of config.install.directories) {
+  for (const dir of directories) {
     const srcDir = path.join(clonePath, dir);
     const destDir = path.join(targetDir, dir);
 
@@ -49,7 +77,7 @@ export async function installFiles(
 
   // Make scripts executable
   const extensions = config.install.executableExtensions ?? [".sh"];
-  for (const dir of config.install.directories) {
+  for (const dir of directories) {
     const dirPath = path.join(targetDir, dir);
     if (!pathExists(dirPath)) continue;
 
@@ -76,10 +104,11 @@ export async function updateFiles(
   targetDir: string,
   clonePath: string
 ): Promise<FileInstallResult> {
+  const directories = resolveDirectories(config, clonePath);
   const installedPaths: string[] = [];
   let totalFiles = 0;
 
-  for (const dir of config.install.directories) {
+  for (const dir of directories) {
     const srcDir = path.join(clonePath, dir);
     const destDir = path.join(targetDir, dir);
 
@@ -96,7 +125,7 @@ export async function updateFiles(
 
   // Make scripts executable
   const extensions = config.install.executableExtensions ?? [".sh"];
-  for (const dir of config.install.directories) {
+  for (const dir of directories) {
     const dirPath = path.join(targetDir, dir);
     if (!pathExists(dirPath)) continue;
 

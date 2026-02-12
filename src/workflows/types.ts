@@ -54,8 +54,12 @@ export interface SourceConfig {
 
 /** Configuration for which files to install from the source repo. */
 export interface InstallConfig {
-  /** Directories from the source repo to copy into the target. */
-  directories: string[];
+  /**
+   * Directories from the source repo to copy into the target.
+   * If omitted or empty, all directories from the repo root are copied
+   * (excluding .git and repo metadata).
+   */
+  directories?: string[];
 
   /** Platform-specific entry point configuration. */
   entryPoints: {

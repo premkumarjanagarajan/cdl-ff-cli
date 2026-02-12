@@ -1,149 +1,220 @@
 ---
-description: Integrate a new workflow into Fluid Flow CLI from a source repository
+description: Add a new workflow to Fluid Flow CLI — guided setup with plan approval
 variables:
   - name: repo_url
-    description: GitHub repository URL for the new workflow (e.g. https://github.com/BetssonGroup/product-workflow)
+    description: GitHub repository URL for the workflow (e.g. https://github.com/BetssonGroup/product-workflow)
     required: true
 ---
 
-I need you to integrate a new workflow into the Fluid Flow CLI application.
+I need you to add a new workflow to the Fluid Flow CLI application.
 
-The source repository for the new workflow is: {{repo_url}}
+The source repository is: **{{repo_url}}**
 
-Follow the integration guide at `docs/adding-a-workflow.md` exactly. Before writing any code, you MUST complete the analysis and question phases below.
+You MUST follow all four phases in order. Do NOT write any code until the plan is approved in Phase 3.
 
----
-
-### PHASE 1: Analyse the source repository
-
-Clone or inspect the provided repository and gather the following information:
-
-1. **Repository structure** — List all top-level directories and note which ones contain the workflow files that should be installed into target projects.
-2. **Entry point files** — Search for `.cursor/rules/*.mdc` files. These are Cursor IDE entry points. List every match with its full path.
-3. **Technology instructions** — Check if there is an `Instructions/technology/` directory (or similar) that contains technology-specific instruction files for Copilot.
-4. **Shell scripts** — Check if the repo contains `.sh` files or other scripts that need to be made executable.
-5. **Default branch** — Identify the default branch name (e.g. `main`, `master`).
-6. **README / description** — Read the repository README or description to understand what the workflow does and who it is for.
-
-Present your findings as a structured summary before proceeding.
+Start by reading the integration guide at `docs/adding-a-workflow.md` — it contains the full configuration reference, templates, and architecture. Use `src/workflows/configs/dev.ts` as the canonical code reference.
 
 ---
 
-### PHASE 2: Ask mandatory questions
+## PHASE 1: Analyse the source repository
 
-Based on your analysis, ask me the following questions. For each question, suggest a default based on what you found in the repo. If a question can be answered with certainty from the repo contents, state your answer and note "(auto-detected)" — I will confirm or override.
+Inspect the provided repository and gather:
 
-**Identity:**
+1. **Repository structure** — List every top-level directory and file.
+2. **Entry points** — Search for `.cursor/rules/*.mdc` files. List every match with its full path.
+3. **Technology instructions** — Check for an `Instructions/technology/` directory (or similar) containing Copilot instruction files.
+4. **Shell scripts** — List any `.sh` or other executable files found.
+5. **Branches** — Check if a `release` branch exists. If not, identify the default branch.
+6. **README / purpose** — Read the README to understand what the workflow does and who it targets.
 
-1. **Workflow ID** — The short, lowercase identifier used in CLI commands (e.g. `ff install <id>`). Must be unique across all registered workflows. Check `src/workflows/registry.ts` for existing IDs.
-   - Suggest based on the repo name.
+Present your findings as a structured summary. Do NOT proceed to Phase 2 until this analysis is complete.
+
+---
+
+## PHASE 2: Ask questions and gather requirements
+
+Based on your analysis, ask me the following questions. For each one, suggest a smart default based on what you found. If a question can be answered with certainty from the repo, state your answer and mark it **(auto-detected)** — I will confirm or override.
+
+Present ALL questions together in a single message. Do NOT proceed until I confirm every answer.
+
+### Identity
+
+1. **Workflow ID** — Short, lowercase identifier for CLI commands (`ff install <id>`).
+   Must be unique — check `src/workflows/registry.ts` for existing IDs.
+   *Suggest based on the repo name.*
 
 2. **Workflow Name** — Human-readable name shown in menus (e.g. "Product Workflow").
-   - Suggest based on the repo README or name.
+   *Suggest based on the README or repo name.*
 
 3. **Description** — One-line description shown next to the menu item.
-   - Suggest based on the repo README.
+   *Suggest based on the README.*
 
-**Source:**
+### Source
 
-4. **Branch** — Which branch should the CLI clone from?
-   - Default: the repo's default branch (auto-detected).
+4. **Branch** — Which branch to clone from?
+   *Default: `release` if it exists, otherwise the repo's default branch. (auto-detected)*
 
-**Installation:**
+### Installation
 
-5. **Directories to install** — Which top-level directories from the source repo should be copied into the target project? List all candidates you found and ask which ones to include.
+5. **Directory strategy** — By default, all directories in the repo root are auto-discovered and copied (excluding `.git`, `.gitignore`, `.github`, `README.md`, `LICENSE`). Options:
+   - **Auto-discover** (recommended) — new directories added to the repo are picked up automatically.
+   - **Explicit list** — only copy specific directories (name them).
+   *Recommend auto-discover unless there is a reason to restrict.*
 
-6. **Cursor entry point** — Which `.mdc` file is the primary entry point for Cursor? If you found exactly one, propose it. If you found multiple, list them and ask which one.
+6. **Cursor entry point** — Which `.mdc` file is the primary entry point?
+   *If exactly one was found, propose it. If multiple, list them and ask.*
+   Note: this file is installed for Cursor as-is and transformed for Copilot automatically.
 
-7. **Copilot support** — Should this workflow support GitHub Copilot? If yes:
-   - The Cursor `.mdc` entry point will be transformed to Copilot format and written to `.github/<name>-instructions.md`.
-   - Ask what the Copilot instructions filename should be.
+7. **Copilot instructions filename** — The entry point will be transformed and written to `.github/<filename>`. What should the filename be?
+   *Suggest `<id>-instructions.md` or `copilot-instructions.md`.*
 
-8. **Technology instructions for Copilot** — Did you find an `Instructions/technology/` directory? If yes, propose configuring `techInstructions` with source and target directories. If no, note that this will be skipped.
+8. **Technology instructions** — Did you find an `Instructions/technology/` directory?
+   - If yes, propose `techInstructions` config with source and target paths.
+   - If no, skip this.
 
-9. **Executable extensions** — Did you find `.sh` files? If yes, default to `[".sh"]`. If other executable types exist, list them.
+9. **Executable extensions** — Did you find `.sh` or other executable files?
+   *Default: `[".sh"]` if any were found, omit otherwise.*
 
-**MCP (Model Context Protocol):**
+### MCP (Model Context Protocol)
 
-10. **MCP servers** — Does this workflow need MCP server configuration? Ask the user. If yes, ask which MCP servers should be included. Present the servers from the existing dev workflow config (`mcp-configs/dev-mcp.json`) as a reference and ask:
-    - Which of the existing servers should be reused? (atlassian, github, filesystem, web-search, aws-document-loader)
-    - Are there any additional MCP servers specific to this workflow?
+10. **MCP servers** — Does this workflow need MCP server configuration?
+    If yes, ask which servers to include. Reference the existing servers from `mcp-configs/dev-mcp.json`:
+    - `atlassian` — Jira/Confluence via MCP remote
+    - `github` — GitHub API via MCP
+    - `filesystem` — Local filesystem access
+    - `web-search` — Web search (disabled by default)
+    - `aws-document-loader` — AWS document loader (Python/uv)
 
-**Features:**
+    Ask:
+    - Which of the above should be reused?
+    - Any additional MCP servers specific to this workflow?
 
-11. **Enabled features** — Based on the answers above, confirm which features to enable:
+    If no MCP is needed, the `mcp` config property and `"mcp"` feature will be omitted.
+
+### Features
+
+11. **Enabled features** — Confirm which features to enable:
     - `"install"` — always yes
     - `"update"` — always yes
     - `"verify"` — yes unless there is a reason to skip
-    - `"mcp"` — yes only if MCP servers are configured
-
-Present all questions together. Do NOT proceed until I confirm all answers.
+    - `"mcp"` — yes only if MCP servers are configured above
 
 ---
 
-### PHASE 3: Create the configuration files
+## PHASE 3: Present the implementation plan
 
-Once I confirm all answers, create the integration by performing these steps in order:
+Once I have confirmed all answers, present a detailed implementation plan. The plan must include:
 
-**Step 1: Create the workflow config file**
+### Plan summary table
 
-Create `src/workflows/configs/<id>.ts` using the confirmed values. Follow the exact structure from `src/workflows/configs/dev.ts` as a reference. The file must:
+| Item | Value |
+|------|-------|
+| Workflow ID | `<id>` |
+| Workflow Name | `<Name> Workflow` |
+| Source | `<owner>/<repo>` @ `<branch>` |
+| Directories | Auto-discover / [explicit list] |
+| Entry point | `.cursor/rules/<file>.mdc` |
+| Copilot target | `.github/<filename>.md` |
+| Tech instructions | Yes (source → target) / No |
+| MCP servers | [list] or N/A |
+| Features | install, update, verify, mcp |
+
+### Files to create
+
+1. **`src/workflows/configs/<id>.ts`** — Show the full file content that will be written.
+2. **`mcp-configs/<id>-mcp.json`** (if applicable) — Show the full JSON content.
+
+### Files to modify
+
+3. **`src/workflows/registry.ts`** — Show the import line to add and the array entry.
+4. **`README.md`** — Show the new row to add to the "Available Workflows" table.
+
+### Build and test commands
+
+Show the exact commands that will be run to verify.
+
+**Ask for explicit approval before proceeding.** Say: *"Does this plan look correct? Reply 'yes' to proceed with implementation, or tell me what to change."*
+
+Do NOT write any code until I approve.
+
+---
+
+## PHASE 4: Implement
+
+Once the plan is approved, execute these steps in exact order:
+
+### Step 1: Create the workflow config
+
+Create `src/workflows/configs/<id>.ts` with the approved content. Must:
 - Import `WorkflowConfig` from `"../types.js"`
 - Export a named constant `<id>Workflow` of type `WorkflowConfig`
-- Include clear JSDoc comments
+- Include JSDoc comments with the workflow name, description, and source
 
-**Step 2: Create the MCP config file (if applicable)**
+### Step 2: Create the MCP config (if applicable)
 
-If MCP was requested, create `mcp-configs/<id>-mcp.json` containing the confirmed MCP server definitions. Use placeholder tokens where needed:
-- `__GITHUB_PAT__` for GitHub personal access tokens
-- `__WORKSPACE__` for workspace folder paths
+Create `mcp-configs/<id>-mcp.json` with the approved server definitions.
+Use placeholder tokens `__GITHUB_PAT__` and `__WORKSPACE__` where needed.
 
-If MCP was not requested, skip this step.
+Skip this step if MCP was not requested.
 
-**Step 3: Register the workflow**
+### Step 3: Register the workflow
 
 Modify `src/workflows/registry.ts`:
-- Add an import for the new config: `import { <id>Workflow } from "./configs/<id>.js";`
-- Add the imported config to the `ALL_WORKFLOWS` array
+- Add the import at the top: `import { <id>Workflow } from "./configs/<id>.js";`
+- Add the config to the `ALL_WORKFLOWS` array
 
-**Step 4: Build and verify**
+### Step 4: Update README
 
-Run `npm run build` and confirm it compiles without errors. If there are TypeScript errors, fix them before proceeding.
+Add a row to the "Available Workflows" table in `README.md`:
 
----
+```markdown
+| **<Name> Workflow** | `<id>` | `<owner>/<repo>` | <description> |
+```
 
-### PHASE 4: Verification summary
+### Step 5: Build and verify
 
-After all files are created, output a summary table:
+Run `npm run build` and confirm zero TypeScript errors. If there are errors, fix them before proceeding.
+
+### Step 6: Verification summary
+
+Output a final summary:
 
 | Item | Value |
 |------|-------|
 | Workflow ID | `<id>` |
 | Config file | `src/workflows/configs/<id>.ts` |
-| MCP config | `mcp-configs/<id>-mcp.json` (or "N/A") |
-| Registry modified | `src/workflows/registry.ts` |
+| MCP config | `mcp-configs/<id>-mcp.json` or N/A |
+| Registry | `src/workflows/registry.ts` (updated) |
+| README | `README.md` (updated) |
 | Features | install, update, verify, mcp |
-| CLI commands | `ff <id>`, `ff install <id>`, `ff update <id>`, `ff mcp <id>` |
 | Build status | Pass / Fail |
 
-Then show the commands the user can run to test:
+Then show the test commands:
 
 ```bash
 ff workflows                          # Should list the new workflow
 ff <id>                               # Should open the workflow sub-menu
+ff install <id> --help                # Should show install help
 ff install <id>                       # Full install test (both Cursor + Copilot)
 ff mcp <id>                           # MCP setup test (if applicable)
+ff update <id> --check                # Check for updates
 ```
 
 ---
 
-### Rules
+## Rules
 
-- Read `docs/adding-a-workflow.md` for full configuration reference before starting.
-- Use `src/workflows/configs/dev.ts` as the canonical reference for config structure.
-- Use `mcp-configs/dev-mcp.json` as the canonical reference for MCP server definitions.
+- Read `docs/adding-a-workflow.md` FIRST — it is the source of truth for configuration reference.
+- Use `src/workflows/configs/dev.ts` as the canonical code reference.
+- Use `mcp-configs/dev-mcp.json` as the canonical MCP reference.
 - Use `src/workflows/types.ts` for all type definitions.
-- Do NOT modify any modules, commands, UI code, or existing workflow configs.
-- Do NOT skip the question phase — mandatory fields that cannot be auto-detected MUST be confirmed.
+- Do NOT modify any modules, commands, or UI code — only config, registry, MCP JSON, and README.
+- Do NOT modify existing workflow configs.
+- Do NOT skip the question phase — all fields that cannot be auto-detected MUST be confirmed.
 - Do NOT invent MCP servers — only include servers the user explicitly confirms.
-- The `id` must be unique — verify against existing IDs in the registry before proposing.
+- Do NOT write any code before the plan is approved in Phase 3.
+- The workflow ID must be unique — verify against existing IDs in the registry.
+- Both Cursor and Copilot entry points are always installed — never ask the user to choose an IDE.
+- MCP is always configured for both Cursor and VS Code — never ask for a platform target.
+- Prefer `release` branch over `main` unless `release` does not exist.
+- Prefer auto-discovery for directories unless the user explicitly wants to restrict.

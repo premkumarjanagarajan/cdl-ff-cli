@@ -22,6 +22,7 @@ import {
   transformTechInstruction,
   TECH_INSTRUCTION_MAPPINGS,
 } from "../installer/copilot-adapter.js";
+import { resolveDirectories } from "../modules/file-installer.js";
 import type { WorkflowConfig } from "../workflows/types.js";
 
 export interface EntryPointResult {
@@ -106,7 +107,8 @@ async function installSinglePlatformEntry(
     // Strip Cursor frontmatter from all workflow .md files
     const strippedCount = await stripFrontmatterFromWorkflowFiles(
       config,
-      targetDir
+      targetDir,
+      clonePath
     );
     if (strippedCount > 0) {
       logInfo(`Cleaned Cursor frontmatter from ${strippedCount} files`);
@@ -134,11 +136,13 @@ async function installSinglePlatformEntry(
 
 async function stripFrontmatterFromWorkflowFiles(
   config: WorkflowConfig,
-  targetDir: string
+  targetDir: string,
+  clonePath: string
 ): Promise<number> {
   let strippedCount = 0;
+  const directories = resolveDirectories(config, clonePath);
 
-  for (const dir of config.install.directories) {
+  for (const dir of directories) {
     const workflowDir = path.join(targetDir, dir);
     if (!pathExists(workflowDir)) continue;
 
