@@ -1,7 +1,10 @@
 import path from "node:path";
 import { theme } from "../ui/theme.js";
 import { renderBox } from "../ui/box.js";
-import { readManifest } from "../installer/manifest.js";
+import {
+  readFullManifest,
+  getInstalledWorkflowIds,
+} from "../modules/manifest.js";
 import { isDirectory } from "../installer/file-ops.js";
 import { shortenPath } from "../utils/system.js";
 import {
@@ -45,7 +48,14 @@ export async function runVerifyCLI(args: string[]): Promise<void> {
 // ── Core verify logic (shared by CLI and menu) ─────────
 
 export async function runVerify(targetDir: string): Promise<void> {
-  const manifest = readManifest(targetDir);
+  // Read v2 manifest and pick the first installed workflow entry
+  const fullManifest = readFullManifest(targetDir);
+  const installedIds = getInstalledWorkflowIds(targetDir);
+  const firstId = installedIds[0];
+  const manifest = firstId && fullManifest
+    ? fullManifest.workflows[firstId]
+    : null;
+
   const repo = getRepoInfo();
 
   // ── Header ──────────────────────────────────────────
@@ -67,7 +77,7 @@ export async function runVerify(targetDir: string): Promise<void> {
 // ── Mode A: Compare installed vs latest ────────────────
 
 async function verifyWithManifest(
-  manifest: { commitSha: string; branch: string; platform: string },
+  manifest: import("../workflows/types.js").WorkflowManifestEntry,
   targetDir: string,
   repo: ReturnType<typeof getRepoInfo>
 ): Promise<void> {

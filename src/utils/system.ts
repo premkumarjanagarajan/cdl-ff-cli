@@ -56,7 +56,7 @@ export function getVersion(): string {
     const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
     return pkg.version ?? "0.0.0";
   } catch {
-    return "0.2.0";
+    return "0.0.0";
   }
 }
 
