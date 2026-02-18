@@ -61,7 +61,7 @@ rollback() {
     success "Rollback successful — CLI restored to previous version."
   else
     fail "Rollback may have failed. Try re-installing:"
-    echo -e "    \${DIM}cd \$INSTALL_DIR && git checkout \$BRANCH && npm install && npm run build && npm link\${RESET}"
+    echo -e "    \${DIM}cd '\$INSTALL_DIR' && git checkout \$BRANCH && npm install && npm run build && npm link\${RESET}"
   fi
   cleanup
   exit 1

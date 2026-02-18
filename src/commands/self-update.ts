@@ -12,7 +12,7 @@
  *   - isUpdateAvailable()   — used by the menu to annotate the item
  */
 
-import { spawn, execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -141,16 +141,19 @@ export function isUpdateAvailable(): boolean {
 }
 
 /**
- * Fire-and-forget background cache refresh via a detached `gh` / `git`
- * process. Does not block the caller.
+ * Fire-and-forget background cache refresh via a detached shell process.
+ * Does not block the caller. Skipped on Windows where bash is unavailable.
  */
 function refreshCacheInBackground(): void {
+  if (process.platform === "win32") return;
+
   try {
-    const localSha = getLocalHeadSha() ?? "unknown";
+    const localSha = (getLocalHeadSha() ?? "unknown").replace(/[^a-f0-9]/gi, "");
+    const cachePath = getCachePath().replace(/'/g, "'\\''");
     const script = `
       sha=$(gh api repos/${CLI_REPO_OWNER}/${CLI_REPO_NAME}/commits/${CLI_BRANCH} --jq '.sha' 2>/dev/null) || \
       sha=$(git ls-remote "https://github.com/${CLI_REPO_OWNER}/${CLI_REPO_NAME}.git" refs/heads/${CLI_BRANCH} 2>/dev/null | cut -f1);
-      [ -n "$sha" ] && printf '{"lastCheck":%d,"remoteSha":"%s","localSha":"%s"}' $(date +%s000) "$sha" "${localSha}" > "${getCachePath()}"
+      [ -n "$sha" ] && printf '{"lastCheck":%d,"remoteSha":"%s","localSha":"%s"}' $(date +%s000) "$sha" "${localSha}" > '${cachePath}'
     `;
     const child = spawn("bash", ["-c", script], {
       detached: true,
@@ -266,7 +269,8 @@ async function launchExternalUpdate(
     ? generatePowerShellUpdateScript(installDir, rollbackSha, CLI_BRANCH)
     : generateBashUpdateScript(installDir, rollbackSha, CLI_BRANCH);
 
-  fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
+  const writeOptions = isWindows ? {} : { mode: 0o755 };
+  fs.writeFileSync(scriptPath, scriptContent, writeOptions);
 
   console.log();
   console.log(`  ${theme.brandBright("→")} ${theme.text("Handing off to updater...")}`);
@@ -279,6 +283,12 @@ async function launchExternalUpdate(
   const child = spawn(shell, shellArgs, {
     detached: true,
     stdio: "inherit",
+  });
+
+  child.on("error", (err) => {
+    console.error(theme.textError(`  Failed to launch updater: ${err.message}`));
+    console.error(theme.hint(`  Try running manually: ${shell} ${scriptPath}`));
+    process.exit(1);
   });
 
   child.unref();
