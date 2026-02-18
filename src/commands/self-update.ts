@@ -12,7 +12,7 @@
  *   - isUpdateAvailable()   — used by the menu to annotate the item
  */
 
-import { spawn } from "node:child_process";
+import { spawn, execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -94,9 +94,9 @@ function getRemoteCliSha(): string | null {
 // ── Public API — startup hint ───────────────────────────────────────────────
 
 /**
- * Non-blocking check intended for the interactive menu startup.
- * Returns a styled hint string if an update is available, or null.
- * Uses a 4-hour cache to avoid network calls on every launch.
+ * Cache-only check for the interactive menu startup. Never makes network
+ * calls — reads only from the local cache file. If the cache is stale,
+ * fires a background refresh (non-blocking) so the next launch benefits.
  */
 export function getUpdateHint(): string | null {
   const localSha = getLocalHeadSha();
@@ -104,20 +104,22 @@ export function getUpdateHint(): string | null {
 
   const cached = readCache();
 
-  if (cached && Date.now() - cached.lastCheck < CACHE_TTL_MS) {
-    if (cached.remoteSha && cached.remoteSha !== cached.localSha) {
-      return formatHint(cached.localSha, cached.remoteSha);
-    }
+  if (!cached) {
+    refreshCacheInBackground();
     return null;
   }
 
-  // Cache is stale or missing — do a quick check
-  const remoteSha = getRemoteCliSha();
-  if (remoteSha) {
-    writeCache({ lastCheck: Date.now(), remoteSha, localSha });
-    if (remoteSha !== localSha) {
-      return formatHint(localSha, remoteSha);
-    }
+  // Keep cached localSha in sync with the currently running CLI version
+  if (cached.localSha !== localSha) {
+    writeCache({ ...cached, localSha });
+  }
+
+  if (Date.now() - cached.lastCheck >= CACHE_TTL_MS) {
+    refreshCacheInBackground();
+  }
+
+  if (cached.remoteSha && cached.remoteSha !== localSha) {
+    return formatHint(localSha, cached.remoteSha);
   }
 
   return null;
@@ -125,12 +127,39 @@ export function getUpdateHint(): string | null {
 
 /**
  * Lightweight check used by the menu to decide whether to annotate
- * the "Self Update" item.
+ * the "Self Update" item. Compares the live local SHA against the
+ * cached remote SHA to avoid stale results after a manual update.
  */
 export function isUpdateAvailable(): boolean {
   const cached = readCache();
   if (!cached) return false;
-  return cached.remoteSha !== cached.localSha;
+
+  const currentLocalSha = getLocalHeadSha();
+  if (!currentLocalSha) return false;
+
+  return cached.remoteSha !== currentLocalSha;
+}
+
+/**
+ * Fire-and-forget background cache refresh via a detached `gh` / `git`
+ * process. Does not block the caller.
+ */
+function refreshCacheInBackground(): void {
+  try {
+    const localSha = getLocalHeadSha() ?? "unknown";
+    const script = `
+      sha=$(gh api repos/${CLI_REPO_OWNER}/${CLI_REPO_NAME}/commits/${CLI_BRANCH} --jq '.sha' 2>/dev/null) || \
+      sha=$(git ls-remote "https://github.com/${CLI_REPO_OWNER}/${CLI_REPO_NAME}.git" refs/heads/${CLI_BRANCH} 2>/dev/null | cut -f1);
+      [ -n "$sha" ] && printf '{"lastCheck":%d,"remoteSha":"%s","localSha":"%s"}' $(date +%s000) "$sha" "${localSha}" > "${getCachePath()}"
+    `;
+    const child = spawn("bash", ["-c", script], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+  } catch {
+    // Non-critical
+  }
 }
 
 function formatHint(localSha: string, remoteSha: string): string {
@@ -234,8 +263,8 @@ async function launchExternalUpdate(
   const scriptPath = path.join(os.tmpdir(), `ff-update-${Date.now()}.${ext}`);
 
   const scriptContent = isWindows
-    ? generatePowerShellUpdateScript(installDir, rollbackSha)
-    : generateBashUpdateScript(installDir, rollbackSha);
+    ? generatePowerShellUpdateScript(installDir, rollbackSha, CLI_BRANCH)
+    : generateBashUpdateScript(installDir, rollbackSha, CLI_BRANCH);
 
   fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
 

@@ -72,7 +72,7 @@ export function getTerminalWidth(): number {
  */
 export function getCliInstallDir(): string {
   const thisFile = fileURLToPath(import.meta.url);
-  // thisFile = <install-dir>/dist/utils/system.js → go up 3 levels
+  // thisFile = <install-dir>/dist/utils/system.js → dirname gives dist/utils, then go up 2 levels
   return path.resolve(path.dirname(thisFile), "..", "..");
 }
 

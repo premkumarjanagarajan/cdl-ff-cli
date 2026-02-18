@@ -7,17 +7,33 @@
  * on failure.
  */
 
+// ── Value escaping ───────────────────────────────────────────────────────────
+
+function escapeBash(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$").replace(/`/g, "\\`");
+}
+
+function escapePowerShell(value: string): string {
+  return value.replace(/`/g, "``").replace(/\$/g, "`$").replace(/"/g, '`"');
+}
+
 // ── Bash (macOS / Linux) ─────────────────────────────────────────────────────
 
 export function generateBashUpdateScript(
   installDir: string,
   rollbackSha: string,
+  branch = "main",
 ): string {
+  const safeDir = escapeBash(installDir);
+  const safeSha = escapeBash(rollbackSha);
+  const safeBranch = escapeBash(branch);
+
   return `#!/usr/bin/env bash
 set -euo pipefail
 
-INSTALL_DIR="${installDir}"
-ROLLBACK_SHA="${rollbackSha}"
+INSTALL_DIR="${safeDir}"
+ROLLBACK_SHA="${safeSha}"
+BRANCH="${safeBranch}"
 SCRIPT_PATH="\$0"
 
 # ── Colors ──────────────────────────────────────────────
@@ -45,7 +61,7 @@ rollback() {
     success "Rollback successful — CLI restored to previous version."
   else
     fail "Rollback may have failed. Try re-installing:"
-    echo -e "    \${DIM}cd ~/.ff-cli && git checkout main && npm install && npm run build && npm link\${RESET}"
+    echo -e "    \${DIM}cd \$INSTALL_DIR && git checkout \$BRANCH && npm install && npm run build && npm link\${RESET}"
   fi
   cleanup
   exit 1
@@ -65,8 +81,8 @@ cd "\$INSTALL_DIR"
 
 info "Fetching latest from GitHub..."
 gh auth setup-git 2>/dev/null || true
-git fetch origin main --quiet
-git reset --hard origin/main --quiet
+git fetch origin "\$BRANCH" --quiet
+git reset --hard "origin/\$BRANCH" --quiet
 success "Source updated"
 
 info "Installing dependencies..."
@@ -100,12 +116,18 @@ cleanup
 export function generatePowerShellUpdateScript(
   installDir: string,
   rollbackSha: string,
+  branch = "main",
 ): string {
+  const safeDir = escapePowerShell(installDir);
+  const safeSha = escapePowerShell(rollbackSha);
+  const safeBranch = escapePowerShell(branch);
+
   return `#Requires -Version 5.1
 $ErrorActionPreference = "Stop"
 
-$InstallDir = "${installDir}"
-$RollbackSha = "${rollbackSha}"
+$InstallDir = "${safeDir}"
+$RollbackSha = "${safeSha}"
+$Branch = "${safeBranch}"
 $ScriptPath = $MyInvocation.MyCommand.Source
 
 function Write-Info($msg)    { Write-Host "  > $msg" -ForegroundColor Cyan }
@@ -138,9 +160,11 @@ try {
     Set-Location $InstallDir
 
     Write-Info "Fetching latest from GitHub..."
-    gh auth setup-git 2>$null
-    git fetch origin main --quiet
-    git reset --hard origin/main --quiet
+    if (Get-Command gh -ErrorAction SilentlyContinue) {
+        try { gh auth setup-git 2>$null } catch { }
+    }
+    git fetch origin $Branch --quiet
+    git reset --hard ("origin/" + $Branch) --quiet
     Write-Ok "Source updated"
 
     Write-Info "Installing dependencies..."

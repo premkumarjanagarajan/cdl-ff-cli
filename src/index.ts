@@ -112,7 +112,7 @@ async function runInteractiveMenu(): Promise<void> {
   process.stdout.write("\x1B[2J\x1B[H");
   console.log(renderWelcome(process.cwd()));
 
-  // Non-blocking update hint (uses 4h cache)
+  // Cache-only update hint (no network calls — background refresh if stale)
   const { getUpdateHint, isUpdateAvailable } = await import("./commands/self-update.js");
   const updateHint = getUpdateHint();
   if (updateHint) {
