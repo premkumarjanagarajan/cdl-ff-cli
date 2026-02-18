@@ -1,5 +1,6 @@
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 
@@ -63,4 +64,27 @@ export function getVersion(): string {
 /** Get terminal width, with a sensible fallback. */
 export function getTerminalWidth(): number {
   return process.stdout.columns ?? 80;
+}
+
+/**
+ * Resolve the CLI installation directory from the compiled JS location.
+ * Works regardless of where the CLI was installed (e.g. ~/.ff-cli).
+ */
+export function getCliInstallDir(): string {
+  const thisFile = fileURLToPath(import.meta.url);
+  // thisFile = <install-dir>/dist/utils/system.js → dirname gives dist/utils, then go up 2 levels
+  return path.resolve(path.dirname(thisFile), "..", "..");
+}
+
+/** Read the current git HEAD SHA of the CLI installation. */
+export function getLocalHeadSha(): string | null {
+  try {
+    return execSync("git rev-parse HEAD", {
+      cwd: getCliInstallDir(),
+      encoding: "utf-8",
+      stdio: "pipe",
+    }).trim();
+  } catch {
+    return null;
+  }
 }

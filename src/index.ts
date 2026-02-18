@@ -77,6 +77,13 @@ switch (command) {
     console.log(`Fluid Flow CLI v${getVersion()}`);
     break;
 
+  case "self-update":
+  case "selfupdate": {
+    const { runSelfUpdateCLI } = await import("./commands/self-update.js");
+    await runSelfUpdateCLI(args.slice(1)).catch(fatal);
+    break;
+  }
+
   case "help":
   case "--help":
   case "-h":
@@ -105,6 +112,14 @@ async function runInteractiveMenu(): Promise<void> {
   process.stdout.write("\x1B[2J\x1B[H");
   console.log(renderWelcome(process.cwd()));
 
+  // Cache-only update hint (no network calls — background refresh if stale)
+  const { getUpdateHint, isUpdateAvailable } = await import("./commands/self-update.js");
+  const updateHint = getUpdateHint();
+  if (updateHint) {
+    console.log(updateHint);
+    console.log();
+  }
+
   let running = true;
 
   while (running) {
@@ -121,6 +136,15 @@ async function runInteractiveMenu(): Promise<void> {
       key: "status",
       label: "Status",
       description: "Check all installed workflows",
+    });
+
+    const updateAvailable = isUpdateAvailable();
+    items.push({
+      key: "self-update",
+      label: "Self Update",
+      description: updateAvailable
+        ? "Update Fluid Flow CLI to the latest version (update available!)"
+        : "Update Fluid Flow CLI to the latest version",
     });
 
     items.push({
@@ -141,6 +165,9 @@ async function runInteractiveMenu(): Promise<void> {
       running = false;
     } else if (action.key === "status") {
       handleGlobalStatus();
+    } else if (action.key === "self-update") {
+      const { runSelfUpdateCLI } = await import("./commands/self-update.js");
+      await runSelfUpdateCLI();
     } else {
       // It's a workflow - show its sub-menu
       const workflow = requireWorkflow(action.key);
@@ -254,6 +281,9 @@ function printHelp(): void {
     `    ${theme.command("mcp <workflow>")}       ${theme.textSecondary("Configure MCP servers for a workflow")}`
   );
   console.log(
+    `    ${theme.command("self-update")}          ${theme.textSecondary("Update the CLI itself to the latest version")}`
+  );
+  console.log(
     `    ${theme.command("workflows")}            ${theme.textSecondary("List all available workflows")}`
   );
   console.log(
@@ -293,6 +323,9 @@ function printHelp(): void {
   );
   console.log(
     theme.textSecondary("    ff mcp dev                          # Setup MCP servers")
+  );
+  console.log(
+    theme.textSecondary("    ff self-update                      # Update the CLI itself")
   );
   console.log(
     theme.textSecondary("    ff workflows                        # List all workflows")
