@@ -12,11 +12,10 @@
  *   - isUpdateAvailable()   — used by the menu to annotate the item
  */
 
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execSync } from "node:child_process";
 import { theme } from "../ui/theme.js";
 import { promptConfirm } from "../ui/menu.js";
 import { getCliInstallDir, getLocalHeadSha, getVersion } from "../utils/system.js";
@@ -285,14 +284,21 @@ async function launchExternalUpdate(
     stdio: "inherit",
   });
 
+  let spawnFailed = false;
+
   child.on("error", (err) => {
+    spawnFailed = true;
     console.error(theme.textError(`  Failed to launch updater: ${err.message}`));
     console.error(theme.hint(`  Try running manually: ${shell} ${scriptPath}`));
     process.exit(1);
   });
 
   child.unref();
-  process.exit(0);
+
+  // Short delay so the async spawn 'error' event can fire if the shell
+  // binary doesn't exist, before we exit the process.
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  if (!spawnFailed) process.exit(0);
 }
 
 // ── Changelog preview ───────────────────────────────────────────────────────
