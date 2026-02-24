@@ -200,7 +200,7 @@ function printSuccess(pm: PackageManager): void {
   );
   console.log(
     theme.textSecondary(
-      `  2. Run ${theme.command(`${pm.command === "npm" ? "npm run" : pm.command} dev"${pm.command === "bun" ? "" : ""}`)} to start the dev server`
+      `  2. Run ${theme.command(`${pm.command === "npm" ? "npm run dev" : pm.command + " dev"}`)} to start the dev server`
     )
   );
   console.log(
