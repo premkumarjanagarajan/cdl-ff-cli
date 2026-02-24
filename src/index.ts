@@ -16,6 +16,7 @@ import { promptMenu } from "./ui/menu.js";
 import { renderBox } from "./ui/box.js";
 import { getAllWorkflows, requireWorkflow } from "./workflows/registry.js";
 import { showWorkflowMenu } from "./commands/workflow-menu.js";
+import { showToolsMenu } from "./commands/tools-menu.js";
 import { getInstalledWorkflowIds, readWorkflowManifest } from "./modules/manifest.js";
 import type { WorkflowConfig } from "./workflows/types.js";
 
@@ -76,6 +77,11 @@ switch (command) {
   case "-v":
     console.log(`Fluid Flow CLI v${getVersion()}`);
     break;
+
+  case "tools": {
+    await showToolsMenu().catch(fatal);
+    break;
+  }
 
   case "self-update":
   case "selfupdate": {
@@ -140,11 +146,11 @@ async function runInteractiveMenu(): Promise<void> {
 
     const updateAvailable = isUpdateAvailable();
     items.push({
-      key: "self-update",
-      label: "Self Update",
+      key: "tools",
+      label: "Tools",
       description: updateAvailable
-        ? "Update Fluid Flow CLI to the latest version (update available!)"
-        : "Update Fluid Flow CLI to the latest version",
+        ? "Developer tools — Slidev, self-update and more (update available!)"
+        : "Developer tools — Slidev, self-update and more",
     });
 
     items.push({
@@ -165,9 +171,8 @@ async function runInteractiveMenu(): Promise<void> {
       running = false;
     } else if (action.key === "status") {
       handleGlobalStatus();
-    } else if (action.key === "self-update") {
-      const { runSelfUpdateCLI } = await import("./commands/self-update.js");
-      await runSelfUpdateCLI();
+    } else if (action.key === "tools") {
+      await showToolsMenu();
     } else {
       // It's a workflow - show its sub-menu
       const workflow = requireWorkflow(action.key);
@@ -281,6 +286,9 @@ function printHelp(): void {
     `    ${theme.command("mcp <workflow>")}       ${theme.textSecondary("Configure MCP servers for a workflow")}`
   );
   console.log(
+    `    ${theme.command("tools")}                ${theme.textSecondary("Open the developer tools menu (Slidev, self-update)")}`
+  );
+  console.log(
     `    ${theme.command("self-update")}          ${theme.textSecondary("Update the CLI itself to the latest version")}`
   );
   console.log(
@@ -323,6 +331,9 @@ function printHelp(): void {
   );
   console.log(
     theme.textSecondary("    ff mcp dev                          # Setup MCP servers")
+  );
+  console.log(
+    theme.textSecondary("    ff tools                            # Open developer tools menu")
   );
   console.log(
     theme.textSecondary("    ff self-update                      # Update the CLI itself")
