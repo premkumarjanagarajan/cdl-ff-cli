@@ -18,7 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import { theme } from "../ui/theme.js";
 import { promptConfirm } from "../ui/menu.js";
-import { getCliInstallDir, getLocalHeadSha, getVersion } from "../utils/system.js";
+import { getCliGitRoot, getLocalHeadSha, getVersion } from "../utils/system.js";
 import {
   generateBashUpdateScript,
   generatePowerShellUpdateScript,
@@ -41,7 +41,7 @@ interface UpdateCheckCache {
 const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 function getCachePath(): string {
-  return path.join(getCliInstallDir(), ".update-check.json");
+  return path.join(getCliGitRoot(), ".update-check.json");
 }
 
 function readCache(): UpdateCheckCache | null {
@@ -188,7 +188,7 @@ export async function runSelfUpdateCLI(args: string[] = []): Promise<void> {
     return;
   }
 
-  const installDir = getCliInstallDir();
+  const gitRoot = getCliGitRoot();
   const localSha = getLocalHeadSha();
 
   if (!localSha) {
@@ -251,13 +251,13 @@ export async function runSelfUpdateCLI(args: string[] = []): Promise<void> {
   }
 
   // Generate and run the external update script
-  await launchExternalUpdate(installDir, localSha);
+  await launchExternalUpdate(gitRoot, localSha);
 }
 
 // ── External script launcher ────────────────────────────────────────────────
 
 async function launchExternalUpdate(
-  installDir: string,
+  gitRoot: string,
   rollbackSha: string,
 ): Promise<void> {
   const isWindows = process.platform === "win32";
@@ -265,8 +265,8 @@ async function launchExternalUpdate(
   const scriptPath = path.join(os.tmpdir(), `ff-update-${Date.now()}.${ext}`);
 
   const scriptContent = isWindows
-    ? generatePowerShellUpdateScript(installDir, rollbackSha, CLI_BRANCH)
-    : generateBashUpdateScript(installDir, rollbackSha, CLI_BRANCH);
+    ? generatePowerShellUpdateScript(gitRoot, rollbackSha, CLI_BRANCH)
+    : generateBashUpdateScript(gitRoot, rollbackSha, CLI_BRANCH);
 
   const writeOptions = isWindows ? {} : { mode: 0o755 };
   fs.writeFileSync(scriptPath, scriptContent, writeOptions);

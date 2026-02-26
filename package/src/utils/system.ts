@@ -67,20 +67,29 @@ export function getTerminalWidth(): number {
 }
 
 /**
- * Resolve the CLI installation directory from the compiled JS location.
- * Works regardless of where the CLI was installed (e.g. ~/.ff-cli).
+ * Resolve the CLI package directory from the compiled JS location.
+ * Returns the `package/` subfolder (e.g. ~/.ff-cli/package) where
+ * package.json, src/, bin/, and dist/ live.
  */
 export function getCliInstallDir(): string {
   const thisFile = fileURLToPath(import.meta.url);
-  // thisFile = <install-dir>/dist/utils/system.js → dirname gives dist/utils, then go up 2 levels
+  // thisFile = <git-root>/package/dist/utils/system.js → go up 2 levels to package/
   return path.resolve(path.dirname(thisFile), "..", "..");
+}
+
+/**
+ * Resolve the git repository root for the CLI installation.
+ * This is the parent of getCliInstallDir() (e.g. ~/.ff-cli).
+ */
+export function getCliGitRoot(): string {
+  return path.resolve(getCliInstallDir(), "..");
 }
 
 /** Read the current git HEAD SHA of the CLI installation. */
 export function getLocalHeadSha(): string | null {
   try {
     return execSync("git rev-parse HEAD", {
-      cwd: getCliInstallDir(),
+      cwd: getCliGitRoot(),
       encoding: "utf-8",
       stdio: "pipe",
     }).trim();

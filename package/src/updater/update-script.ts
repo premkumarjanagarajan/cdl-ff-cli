@@ -5,6 +5,10 @@
  * the actual CLI update outside of the Node.js process. This avoids the
  * "updating yourself while running" problem and includes automatic rollback
  * on failure.
+ *
+ * The repo uses sparse checkout: git operations run from the git root
+ * (e.g. ~/.ff-cli) while npm operations run from the package subdirectory
+ * (e.g. ~/.ff-cli/package).
  */
 
 // ── Value escaping ───────────────────────────────────────────────────────────
@@ -20,18 +24,21 @@ function escapePowerShell(value: string): string {
 // ── Bash (macOS / Linux) ─────────────────────────────────────────────────────
 
 export function generateBashUpdateScript(
-  installDir: string,
+  gitRoot: string,
   rollbackSha: string,
   branch = "main",
+  packageSubdir = "package",
 ): string {
-  const safeDir = escapeBash(installDir);
+  const safeRoot = escapeBash(gitRoot);
   const safeSha = escapeBash(rollbackSha);
   const safeBranch = escapeBash(branch);
+  const safePkg = escapeBash(packageSubdir);
 
   return `#!/usr/bin/env bash
 set -euo pipefail
 
-INSTALL_DIR="${safeDir}"
+GIT_ROOT="${safeRoot}"
+PKG_DIR="${safeRoot}/${safePkg}"
 ROLLBACK_SHA="${safeSha}"
 BRANCH="${safeBranch}"
 SCRIPT_PATH="\$0"
@@ -53,15 +60,16 @@ fail()    { echo -e "  \${RED}✗\${RESET} \$1"; }
 rollback() {
   echo ""
   warn "Update failed — rolling back to previous version..."
-  cd "\$INSTALL_DIR"
+  cd "\$GIT_ROOT"
   git reset --hard "\$ROLLBACK_SHA" --quiet 2>/dev/null || true
+  cd "\$PKG_DIR"
   npm install --silent --no-fund --no-audit 2>/dev/null || true
   npm run build --silent 2>/dev/null || true
   if command -v ff &>/dev/null && ff --version &>/dev/null; then
     success "Rollback successful — CLI restored to previous version."
   else
     fail "Rollback may have failed. Try re-installing:"
-    echo -e "    \${DIM}cd '\$INSTALL_DIR' && git checkout \$BRANCH && npm install && npm run build && npm link\${RESET}"
+    echo -e "    \${DIM}cd '\$PKG_DIR' && npm install && npm run build && npm link\${RESET}"
   fi
   cleanup
   exit 1
@@ -77,13 +85,15 @@ echo ""
 echo -e "\${BOLD}\${CYAN}  ── Fluid Flow CLI — Self Update ──\${RESET}"
 echo ""
 
-cd "\$INSTALL_DIR"
+cd "\$GIT_ROOT"
 
 info "Fetching latest from GitHub..."
 gh auth setup-git 2>/dev/null || true
 git fetch origin "\$BRANCH" --quiet
 git reset --hard "origin/\$BRANCH" --quiet
 success "Source updated"
+
+cd "\$PKG_DIR"
 
 info "Installing dependencies..."
 npm install --silent --no-fund --no-audit 2>/dev/null
@@ -114,18 +124,21 @@ cleanup
 // ── PowerShell (Windows) ─────────────────────────────────────────────────────
 
 export function generatePowerShellUpdateScript(
-  installDir: string,
+  gitRoot: string,
   rollbackSha: string,
   branch = "main",
+  packageSubdir = "package",
 ): string {
-  const safeDir = escapePowerShell(installDir);
+  const safeRoot = escapePowerShell(gitRoot);
   const safeSha = escapePowerShell(rollbackSha);
   const safeBranch = escapePowerShell(branch);
+  const safePkg = escapePowerShell(packageSubdir);
 
   return `#Requires -Version 5.1
 $ErrorActionPreference = "Stop"
 
-$InstallDir = "${safeDir}"
+$GitRoot = "${safeRoot}"
+$PkgDir = "${safeRoot}\\${safePkg}"
 $RollbackSha = "${safeSha}"
 $Branch = "${safeBranch}"
 $ScriptPath = $MyInvocation.MyCommand.Source
@@ -138,8 +151,9 @@ function Write-Fail($msg)    { Write-Host "  ✗ $msg" -ForegroundColor Red }
 function Invoke-Rollback {
     Write-Host ""
     Write-Warn "Update failed — rolling back to previous version..."
-    Set-Location $InstallDir
+    Set-Location $GitRoot
     git reset --hard $RollbackSha --quiet 2>$null
+    Set-Location $PkgDir
     npm install --silent --no-fund --no-audit 2>$null
     npm run build --silent 2>$null
     try {
@@ -157,7 +171,7 @@ try {
     Write-Host "  -- Fluid Flow CLI — Self Update --" -ForegroundColor Cyan
     Write-Host ""
 
-    Set-Location $InstallDir
+    Set-Location $GitRoot
 
     Write-Info "Fetching latest from GitHub..."
     if (Get-Command gh -ErrorAction SilentlyContinue) {
@@ -166,6 +180,8 @@ try {
     git fetch origin $Branch --quiet
     git reset --hard ("origin/" + $Branch) --quiet
     Write-Ok "Source updated"
+
+    Set-Location $PkgDir
 
     Write-Info "Installing dependencies..."
     npm install --silent --no-fund --no-audit 2>$null

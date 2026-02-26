@@ -1,0 +1,72 @@
+{
+  "servers": {
+    "atlassian": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.atlassian.com/v1/sse"
+      ],
+      "env": {
+        "LOG_LEVEL": "INFO",
+        "NODE_ENV": "production"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github-pat}",
+        "LOG_LEVEL": "INFO",
+        "NODE_ENV": "production"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${workspaceFolder}"
+      ],
+      "env": {
+        "LOG_LEVEL": "INFO",
+        "NODE_ENV": "production",
+        "MAX_FILE_SIZE": "10485760",
+        "ALLOWED_EXTENSIONS": ".js,.ts,.tsx,.jsx,.py,.json,.md,.txt,.yaml,.yml,.toml,.env,.gitignore,.dockerfile"
+      }
+    },
+    "web-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-web-search"
+      ],
+      "env": {
+        "LOG_LEVEL": "INFO",
+        "NODE_ENV": "production",
+        "SEARCH_ENGINE": "google",
+        "MAX_RESULTS": "10"
+      }
+    },
+    "aws-document-loader": {
+      "command": "uvx",
+      "args": [
+        "awslabs.document-loader-mcp-server@latest"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "github-pat",
+      "description": "GitHub Personal Access Token",
+      "password": true
+    }
+  ]
+}
