@@ -1,12 +1,12 @@
 /**
- * Installation Registration Module
+ * Installation Log Module
  *
- * Creates a GitHub issue in BetssonGroup/cdl-ff-cli for each install or
- * update event (CLI install, CLI self-update, workflow install, workflow
- * update). Uses the `gh` CLI which is already a prerequisite.
+ * Fires a GitHub repository_dispatch event for each install or update
+ * event. A GitHub Action receives the payload and appends a row to
+ * the repo wiki's Installation Log page.
  *
- * All functions are fire-and-forget — registration failure never blocks
- * the actual operation.
+ * Uses the `gh` CLI which is already a prerequisite.
+ * All functions are fire-and-forget — failures never block the operation.
  */
 
 import path from "node:path";
@@ -21,52 +21,44 @@ import {
   shortenPath,
 } from "../utils/system.js";
 
-const REGISTRATION_REPO = "BetssonGroup/cdl-ff-cli";
-
-const LABEL_SELF_INSTALL = "log-self-install";
-const LABEL_SELF_UPDATE = "log-self-update";
-const LABEL_INSTALL = "log-install";
-const LABEL_UPDATE = "log-update";
+const DISPATCH_REPO = "BetssonGroup/cdl-ff-cli";
+const EVENT_TYPE = "installation-log";
 
 // -- Public API ---------------------------------------------------------------
 
 export function registerCliInstall(): void {
   try {
     const info = collectBaseInfo();
-    const title = `[Log] CLI Install — ${info.userName}`;
-    const body = buildMarkdownTable([
-      ["Event", "CLI Install"],
-      ["User", info.userName],
-      ["Email", info.email],
-      ["Hostname", info.hostname],
-      ["OS", info.os],
-      ["Node.js", process.version],
-      ["CLI Version", info.cliVersion],
-      ["Timestamp", info.timestamp],
-    ]);
-    createRegistrationIssue(title, body, LABEL_SELF_INSTALL);
+    fireDispatch({
+      event: "CLI Install",
+      user: info.userName,
+      email: info.email,
+      hostname: info.hostname,
+      os: info.os,
+      node: process.version,
+      cli_version: info.cliVersion,
+      timestamp: info.timestamp,
+    });
   } catch {
-    // Silent — never block the install
+    // Silent
   }
 }
 
 export function registerCliSelfUpdate(fromSha: string, toSha: string): void {
   try {
     const info = collectBaseInfo();
-    const title = `[Log] CLI Update — ${info.userName}`;
-    const body = buildMarkdownTable([
-      ["Event", "CLI Self-Update"],
-      ["User", info.userName],
-      ["Email", info.email],
-      ["Hostname", info.hostname],
-      ["OS", info.os],
-      ["Node.js", process.version],
-      ["CLI Version", info.cliVersion],
-      ["Previous SHA", fromSha.slice(0, 8)],
-      ["New SHA", toSha.slice(0, 8)],
-      ["Timestamp", info.timestamp],
-    ]);
-    createRegistrationIssue(title, body, LABEL_SELF_UPDATE);
+    fireDispatch({
+      event: "CLI Self-Update",
+      user: info.userName,
+      email: info.email,
+      hostname: info.hostname,
+      os: info.os,
+      node: process.version,
+      cli_version: info.cliVersion,
+      from_sha: fromSha.slice(0, 8),
+      to_sha: toSha.slice(0, 8),
+      timestamp: info.timestamp,
+    });
   } catch {
     // Silent
   }
@@ -80,25 +72,21 @@ export function registerWorkflowInstall(
 ): void {
   try {
     const info = collectBaseInfo();
-    const folderName = path.basename(targetDir);
-    const projectRepo = getTargetRepoRemote(targetDir) ?? "N/A";
-    const title = `[Log] Workflow Install: ${workflowId} — ${info.userName}`;
-    const body = buildMarkdownTable([
-      ["Event", "Workflow Install"],
-      ["Workflow", `${workflowId} (${workflowName})`],
-      ["User", info.userName],
-      ["Email", info.email],
-      ["Hostname", info.hostname],
-      ["OS", info.os],
-      ["Node.js", process.version],
-      ["CLI Version", info.cliVersion],
-      ["Folder", folderName],
-      ["Project Path", shortenPath(targetDir)],
-      ["Project Repository", projectRepo],
-      ["Commit SHA", commitSha.slice(0, 8)],
-      ["Timestamp", info.timestamp],
-    ]);
-    createRegistrationIssue(title, body, LABEL_INSTALL);
+    fireDispatch({
+      event: "Workflow Install",
+      workflow: `${workflowId} (${workflowName})`,
+      user: info.userName,
+      email: info.email,
+      hostname: info.hostname,
+      os: info.os,
+      node: process.version,
+      cli_version: info.cliVersion,
+      folder: path.basename(targetDir),
+      project_path: shortenPath(targetDir),
+      project_repo: getTargetRepoRemote(targetDir) ?? "N/A",
+      commit_sha: commitSha.slice(0, 8),
+      timestamp: info.timestamp,
+    });
   } catch {
     // Silent
   }
@@ -113,26 +101,22 @@ export function registerWorkflowUpdate(
 ): void {
   try {
     const info = collectBaseInfo();
-    const folderName = path.basename(targetDir);
-    const projectRepo = getTargetRepoRemote(targetDir) ?? "N/A";
-    const title = `[Log] Workflow Update: ${workflowId} — ${info.userName}`;
-    const body = buildMarkdownTable([
-      ["Event", "Workflow Update"],
-      ["Workflow", `${workflowId} (${workflowName})`],
-      ["User", info.userName],
-      ["Email", info.email],
-      ["Hostname", info.hostname],
-      ["OS", info.os],
-      ["Node.js", process.version],
-      ["CLI Version", info.cliVersion],
-      ["Folder", folderName],
-      ["Project Path", shortenPath(targetDir)],
-      ["Project Repository", projectRepo],
-      ["Previous SHA", fromSha.slice(0, 8)],
-      ["New SHA", toSha.slice(0, 8)],
-      ["Timestamp", info.timestamp],
-    ]);
-    createRegistrationIssue(title, body, LABEL_UPDATE);
+    fireDispatch({
+      event: "Workflow Update",
+      workflow: `${workflowId} (${workflowName})`,
+      user: info.userName,
+      email: info.email,
+      hostname: info.hostname,
+      os: info.os,
+      node: process.version,
+      cli_version: info.cliVersion,
+      folder: path.basename(targetDir),
+      project_path: shortenPath(targetDir),
+      project_repo: getTargetRepoRemote(targetDir) ?? "N/A",
+      from_sha: fromSha.slice(0, 8),
+      to_sha: toSha.slice(0, 8),
+      timestamp: info.timestamp,
+    });
   } catch {
     // Silent
   }
@@ -160,19 +144,10 @@ function collectBaseInfo(): BaseInfo {
   };
 }
 
-function buildMarkdownTable(rows: [string, string][]): string {
-  const lines = ["| Field | Value |", "|-------|-------|"];
-  for (const [field, value] of rows) {
-    lines.push(`| **${field}** | ${value} |`);
-  }
-  return lines.join("\n");
-}
-
-function createRegistrationIssue(title: string, body: string, label: string): void {
-  const escapedTitle = title.replace(/"/g, '\\"');
-  const escapedBody = body.replace(/"/g, '\\"');
+function fireDispatch(payload: Record<string, string>): void {
+  const json = JSON.stringify({ event_type: EVENT_TYPE, client_payload: payload });
   execSync(
-    `gh issue create --repo "${REGISTRATION_REPO}" --label "${label}" --title "${escapedTitle}" --body "${escapedBody}"`,
-    { encoding: "utf-8", stdio: "pipe", timeout: 30_000 },
+    `gh api repos/${DISPATCH_REPO}/dispatches --input - <<< '${json.replace(/'/g, "'\\''")}'`,
+    { encoding: "utf-8", stdio: "pipe", timeout: 15_000, shell: "/bin/bash" },
   );
 }

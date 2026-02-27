@@ -262,24 +262,23 @@ function Register-Installation {
         $cliVer = (node -e "console.log(JSON.parse(require('fs').readFileSync('$($PkgDir.Replace('\','/'))/package.json','utf-8')).version)" 2>$null) ?? "unknown"
         $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
-        $body = @"
-| Field | Value |
-|-------|-------|
-| **Event** | CLI Install |
-| **User** | $username |
-| **Email** | $email |
-| **Hostname** | $hostnameVal |
-| **OS** | $osInfo |
-| **Node.js** | $nodeVer |
-| **CLI Version** | $cliVer |
-| **Timestamp** | $timestamp |
+        $payload = @"
+{
+  "event_type": "installation-log",
+  "client_payload": {
+    "event": "CLI Install",
+    "user": "$username",
+    "email": "$email",
+    "hostname": "$hostnameVal",
+    "os": "$osInfo",
+    "node": "$nodeVer",
+    "cli_version": "$cliVer",
+    "timestamp": "$timestamp"
+  }
+}
 "@
 
-        gh issue create `
-            --repo "$RepoOwner/$RepoName" `
-            --label "log-self-install" `
-            --title "[Log] CLI Install — $username" `
-            --body $body *> $null
+        $payload | gh api "repos/$RepoOwner/$RepoName/dispatches" --input - *> $null
     } catch {
         # Silent — never block the install
     }

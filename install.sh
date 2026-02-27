@@ -214,7 +214,7 @@ verify_install() {
 }
 
 register_install() {
-  local username email hostname_val os_info node_ver cli_ver timestamp
+  local username email hostname_val os_info node_ver cli_ver timestamp payload
 
   username=$(git config user.name 2>/dev/null || echo "Unknown")
   email=$(git config user.email 2>/dev/null || echo "Unknown")
@@ -224,23 +224,24 @@ register_install() {
   cli_ver=$(node -e "console.log(JSON.parse(require('fs').readFileSync('${PKG_DIR}/package.json','utf-8')).version)" 2>/dev/null || echo "unknown")
   timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-  gh issue create \
-    --repo "${REPO_OWNER}/${REPO_NAME}" \
-    --label "log-self-install" \
-    --title "[Log] CLI Install — ${username}" \
-    --body "$(cat <<REGEOF
-| Field | Value |
-|-------|-------|
-| **Event** | CLI Install |
-| **User** | ${username} |
-| **Email** | ${email} |
-| **Hostname** | ${hostname_val} |
-| **OS** | ${os_info} |
-| **Node.js** | ${node_ver} |
-| **CLI Version** | ${cli_ver} |
-| **Timestamp** | ${timestamp} |
-REGEOF
-)" 2>/dev/null || true
+  payload=$(cat <<PEOF
+{
+  "event_type": "installation-log",
+  "client_payload": {
+    "event": "CLI Install",
+    "user": "${username}",
+    "email": "${email}",
+    "hostname": "${hostname_val}",
+    "os": "${os_info}",
+    "node": "${node_ver}",
+    "cli_version": "${cli_ver}",
+    "timestamp": "${timestamp}"
+  }
+}
+PEOF
+)
+
+  echo "$payload" | gh api repos/${REPO_OWNER}/${REPO_NAME}/dispatches --input - 2>/dev/null || true
 }
 
 print_next_steps() {
