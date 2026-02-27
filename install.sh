@@ -213,6 +213,36 @@ verify_install() {
   fi
 }
 
+register_install() {
+  local username email hostname_val os_info node_ver cli_ver timestamp
+
+  username=$(git config user.name 2>/dev/null || echo "Unknown")
+  email=$(git config user.email 2>/dev/null || echo "Unknown")
+  hostname_val=$(hostname 2>/dev/null || echo "Unknown")
+  os_info="$(uname -s) $(uname -m) $(uname -r)"
+  node_ver=$(node --version 2>/dev/null || echo "Unknown")
+  cli_ver=$(node -e "console.log(JSON.parse(require('fs').readFileSync('${PKG_DIR}/package.json','utf-8')).version)" 2>/dev/null || echo "unknown")
+  timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  gh issue create \
+    --repo "${REPO_OWNER}/${REPO_NAME}" \
+    --label "log-self-install" \
+    --title "[Log] CLI Install — ${username}" \
+    --body "$(cat <<REGEOF
+| Field | Value |
+|-------|-------|
+| **Event** | CLI Install |
+| **User** | ${username} |
+| **Email** | ${email} |
+| **Hostname** | ${hostname_val} |
+| **OS** | ${os_info} |
+| **Node.js** | ${node_ver} |
+| **CLI Version** | ${cli_ver} |
+| **Timestamp** | ${timestamp} |
+REGEOF
+)" 2>/dev/null || true
+}
+
 print_next_steps() {
   echo ""
   echo -e "${BOLD}${CYAN}  ── Next Steps ──────────────────────────────${RESET}"
@@ -251,6 +281,7 @@ main() {
   build_project
   link_cli
   verify_install
+  register_install
   print_next_steps
 }
 

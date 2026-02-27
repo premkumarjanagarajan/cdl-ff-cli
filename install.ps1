@@ -252,6 +252,39 @@ function Test-Installation {
     }
 }
 
+function Register-Installation {
+    try {
+        $username = (git config user.name 2>$null) ?? "Unknown"
+        $email = (git config user.email 2>$null) ?? "Unknown"
+        $hostnameVal = $env:COMPUTERNAME ?? "Unknown"
+        $osInfo = [System.Environment]::OSVersion.ToString()
+        $nodeVer = (node --version 2>$null) ?? "Unknown"
+        $cliVer = (node -e "console.log(JSON.parse(require('fs').readFileSync('$($PkgDir.Replace('\','/'))/package.json','utf-8')).version)" 2>$null) ?? "unknown"
+        $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+        $body = @"
+| Field | Value |
+|-------|-------|
+| **Event** | CLI Install |
+| **User** | $username |
+| **Email** | $email |
+| **Hostname** | $hostnameVal |
+| **OS** | $osInfo |
+| **Node.js** | $nodeVer |
+| **CLI Version** | $cliVer |
+| **Timestamp** | $timestamp |
+"@
+
+        gh issue create `
+            --repo "$RepoOwner/$RepoName" `
+            --label "log-self-install" `
+            --title "[Log] CLI Install — $username" `
+            --body $body *> $null
+    } catch {
+        # Silent — never block the install
+    }
+}
+
 function Write-NextSteps {
     Write-Host ""
     Write-Host "  -- Next Steps ----------------------------------------" -ForegroundColor Cyan
@@ -290,6 +323,7 @@ function Main {
     Build-Project
     Register-Cli
     Test-Installation
+    Register-Installation
     Write-NextSteps
 }
 

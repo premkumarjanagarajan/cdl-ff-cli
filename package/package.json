@@ -1,6 +1,6 @@
 {
   "name": "@fluidflow/cli",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Fluid Flow — Developer workflow orchestration CLI",
   "type": "module",
   "main": "dist/index.js",

@@ -22,6 +22,7 @@ import {
   createManifestEntry,
   getManifestFileName,
 } from "../modules/manifest.js";
+import { registerWorkflowInstall } from "../modules/registration.js";
 
 // -- CLI entry point ----------------------------------------------------------
 
@@ -140,6 +141,7 @@ export async function runInstallCLI(args: string[]): Promise<void> {
         installedPaths,
       });
       writeWorkflowManifest(targetDir, config.id, manifestEntry);
+      registerWorkflowInstall(config.id, config.name, targetDir, source.commitSha);
 
       printInstallSuccess(config, totalFiles, source.commitSha);
 
