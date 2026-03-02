@@ -271,8 +271,13 @@ async function launchExternalUpdate(
     ? generatePowerShellUpdateScript(gitRoot, rollbackSha, CLI_BRANCH)
     : generateBashUpdateScript(gitRoot, rollbackSha, CLI_BRANCH);
 
-  const writeOptions = isWindows ? {} : { mode: 0o755 };
-  fs.writeFileSync(scriptPath, scriptContent, writeOptions);
+  if (isWindows) {
+    const bom = Buffer.from([0xef, 0xbb, 0xbf]);
+    const body = Buffer.from(scriptContent, "utf-8");
+    fs.writeFileSync(scriptPath, Buffer.concat([bom, body]));
+  } else {
+    fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
+  }
 
   console.log();
   console.log(`  ${theme.brandBright("→")} ${theme.text("Handing off to updater...")}`);

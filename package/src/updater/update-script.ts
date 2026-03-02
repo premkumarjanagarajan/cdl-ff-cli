@@ -11,7 +11,7 @@
  * (e.g. ~/.ff-cli/package).
  */
 
-// ── Value escaping ───────────────────────────────────────────────────────────
+// -- Value escaping -----------------------------------------------------------
 
 function escapeBash(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$").replace(/`/g, "\\`");
@@ -21,7 +21,7 @@ function escapePowerShell(value: string): string {
   return value.replace(/`/g, "``").replace(/\$/g, "`$").replace(/"/g, '`"');
 }
 
-// ── Bash (macOS / Linux) ─────────────────────────────────────────────────────
+// -- Bash (macOS / Linux) -----------------------------------------------------
 
 export function generateBashUpdateScript(
   gitRoot: string,
@@ -43,7 +43,7 @@ ROLLBACK_SHA="${safeSha}"
 BRANCH="${safeBranch}"
 SCRIPT_PATH="\$0"
 
-# ── Colors ──────────────────────────────────────────────
+# -- Colors --------------------------------------------------------
 BOLD='\\033[1m'
 DIM='\\033[2m'
 GREEN='\\033[0;32m'
@@ -52,21 +52,21 @@ RED='\\033[0;31m'
 CYAN='\\033[0;36m'
 RESET='\\033[0m'
 
-info()    { echo -e "  \${CYAN}▸\${RESET} \$1"; }
-success() { echo -e "  \${GREEN}✓\${RESET} \$1"; }
-warn()    { echo -e "  \${YELLOW}!\${RESET} \$1"; }
-fail()    { echo -e "  \${RED}✗\${RESET} \$1"; }
+info()    { echo -e "  \${CYAN}>\${RESET} \$1"; }
+success() { echo -e "  \${GREEN}[OK]\${RESET} \$1"; }
+warn()    { echo -e "  \${YELLOW}[!]\${RESET} \$1"; }
+fail()    { echo -e "  \${RED}[X]\${RESET} \$1"; }
 
 rollback() {
   echo ""
-  warn "Update failed — rolling back to previous version..."
+  warn "Update failed -- rolling back to previous version..."
   cd "\$GIT_ROOT"
   git reset --hard "\$ROLLBACK_SHA" --quiet 2>/dev/null || true
   cd "\$PKG_DIR"
   npm install --silent --no-fund --no-audit 2>/dev/null || true
   npm run build --silent 2>/dev/null || true
   if command -v ff &>/dev/null && ff --version &>/dev/null; then
-    success "Rollback successful — CLI restored to previous version."
+    success "Rollback successful -- CLI restored to previous version."
   else
     fail "Rollback may have failed. Try re-installing:"
     echo -e "    \${DIM}cd '\$PKG_DIR' && npm install && npm run build && npm link\${RESET}"
@@ -82,7 +82,7 @@ cleanup() {
 trap rollback ERR
 
 echo ""
-echo -e "\${BOLD}\${CYAN}  ── Fluid Flow CLI — Self Update ──\${RESET}"
+echo -e "\${BOLD}\${CYAN}  -- Fluid Flow CLI - Self Update --\${RESET}"
 echo ""
 
 cd "\$GIT_ROOT"
@@ -111,7 +111,7 @@ success "CLI linked globally"
 echo ""
 if command -v ff &>/dev/null; then
   NEW_VERSION=\$(ff --version 2>/dev/null || echo "unknown")
-  success "\${BOLD}Update successful!\${RESET} — \${NEW_VERSION}"
+  success "\${BOLD}Update successful!\${RESET} - \${NEW_VERSION}"
 else
   warn "Update completed but 'ff' is not in PATH. Try opening a new terminal."
 fi
@@ -121,7 +121,7 @@ cleanup
 `;
 }
 
-// ── PowerShell (Windows) ─────────────────────────────────────────────────────
+// -- PowerShell (Windows) -----------------------------------------------------
 
 export function generatePowerShellUpdateScript(
   gitRoot: string,
@@ -144,13 +144,13 @@ $Branch = "${safeBranch}"
 $ScriptPath = $MyInvocation.MyCommand.Source
 
 function Write-Info($msg)    { Write-Host "  > $msg" -ForegroundColor Cyan }
-function Write-Ok($msg)      { Write-Host "  ✓ $msg" -ForegroundColor Green }
-function Write-Warn($msg)    { Write-Host "  ! $msg" -ForegroundColor Yellow }
-function Write-Fail($msg)    { Write-Host "  ✗ $msg" -ForegroundColor Red }
+function Write-Ok($msg)      { Write-Host "  [OK] $msg" -ForegroundColor Green }
+function Write-Warn($msg)    { Write-Host "  [!] $msg" -ForegroundColor Yellow }
+function Write-Fail($msg)    { Write-Host "  [X] $msg" -ForegroundColor Red }
 
 function Invoke-Rollback {
     Write-Host ""
-    Write-Warn "Update failed — rolling back to previous version..."
+    Write-Warn "Update failed -- rolling back to previous version..."
     Set-Location $GitRoot
     git reset --hard $RollbackSha --quiet 2>$null
     Set-Location $PkgDir
@@ -158,7 +158,7 @@ function Invoke-Rollback {
     npm run build --silent 2>$null
     try {
         $null = ff --version 2>$null
-        Write-Ok "Rollback successful — CLI restored to previous version."
+        Write-Ok "Rollback successful -- CLI restored to previous version."
     } catch {
         Write-Fail "Rollback may have failed. Try re-installing manually."
     }
@@ -168,7 +168,7 @@ function Invoke-Rollback {
 
 try {
     Write-Host ""
-    Write-Host "  -- Fluid Flow CLI — Self Update --" -ForegroundColor Cyan
+    Write-Host "  -- Fluid Flow CLI - Self Update --" -ForegroundColor Cyan
     Write-Host ""
 
     Set-Location $GitRoot
@@ -199,7 +199,7 @@ try {
     Write-Host ""
     try {
         $NewVersion = ff --version 2>$null
-        Write-Ok "Update successful! — $NewVersion"
+        Write-Ok "Update successful! - $NewVersion"
     } catch {
         Write-Warn "Update completed but 'ff' is not in PATH. Try opening a new terminal."
     }
