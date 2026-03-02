@@ -1,4 +1,4 @@
-# Fluid Flow CLI
+# Fluid Flow CLI v0.3.4
 
 > Multi-workflow orchestration tool for Cursor IDE and GitHub Copilot.
 
@@ -283,6 +283,8 @@ Selecting a workflow opens its sub-menu with all available actions:
   +--------------------------------------------------------------+
 ```
 
+Both **Install** and **Update** include a branch selection step. You are first asked whether to use the default/current branch. If you decline, available branches are fetched from the source repository and presented as a numbered menu.
+
 ### CLI Commands
 
 For scripting or quick actions, use commands directly:
@@ -322,14 +324,17 @@ ff install dev /path/to/repo
 ff install dev --force
 ```
 
+**Branch selection:** During installation, you will first be asked: *"Would you like to install the default Fluid Flow?"*. If you answer **yes**, the default branch (`release`) is used immediately. If you answer **no**, available branches are fetched from the source repository and presented as a numbered menu for you to choose from. If branches cannot be fetched (e.g. no network), the default branch is used automatically.
+
 **What it does:**
-1. Clones the latest workflow files from the workflow's source repository
-2. Copies the configured directories into your project
-3. Installs platform-specific entry points:
+1. Asks whether to use the default branch or choose a different one
+2. Clones the latest workflow files from the workflow's source repository
+3. Copies the configured directories into your project
+4. Installs platform-specific entry points:
    - **Cursor IDE**: `.cursor/rules/workflow.mdc` -- activates automatically
    - **GitHub Copilot**: `.github/copilot-instructions.md` + `.github/instructions/*.instructions.md`
-4. Updates the `.fluid-flow.json` manifest to track the installation
-5. Optionally configures MCP servers
+5. Updates the `.fluid-flow.json` manifest to track the installation
+6. Optionally configures MCP servers
 
 **After installation:**
 - **Cursor**: Open the project in Cursor -- the workflow rule activates automatically when you make development requests
@@ -349,6 +354,8 @@ ff update dev --check
 # Force re-download even if up to date
 ff update dev --force
 ```
+
+**Branch selection:** During update, you will first be asked: *"Would you like to update from the current branch?"*. If you answer **yes**, the currently installed branch is used. If you answer **no**, available branches are fetched and presented as a numbered menu (the current branch is marked `(current)`, the configured default is marked `(default)`). Switching to a different branch always forces a fresh download regardless of the commit SHA. The selected branch is saved to the manifest for future updates.
 
 ### verify
 

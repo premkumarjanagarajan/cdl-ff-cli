@@ -188,6 +188,53 @@ export function promptMenu(
   });
 }
 
+// ── Branch selection ───────────────────────────────────
+
+export interface BranchPromptOptions {
+  /** The configured default branch (shown first, labelled "(default)"). */
+  defaultBranch: string;
+  /** The currently installed branch, if any (labelled "(current)"). */
+  currentBranch?: string;
+}
+
+/**
+ * Show a branch selection menu and return the chosen branch name.
+ * Sorts so `defaultBranch` is first, `currentBranch` second (if different),
+ * then remaining branches alphabetically.
+ */
+export async function promptBranch(
+  branches: string[],
+  options: BranchPromptOptions
+): Promise<string> {
+  const { defaultBranch, currentBranch } = options;
+
+  const sorted = [...branches].sort((a, b) => {
+    if (a === defaultBranch) return -1;
+    if (b === defaultBranch) return 1;
+    if (currentBranch && a === currentBranch) return -1;
+    if (currentBranch && b === currentBranch) return 1;
+    return a.localeCompare(b);
+  });
+
+  const items: MenuItem[] = sorted.map((name) => {
+    const tags: string[] = [];
+    if (name === defaultBranch) tags.push("default");
+    if (currentBranch && name === currentBranch) tags.push("current");
+    return {
+      key: name,
+      label: name,
+      description: tags.length > 0 ? `(${tags.join(", ")})` : undefined,
+    };
+  });
+
+  const selected = await promptMenu(items, {
+    title: "Select Branch",
+    prompt: "Which branch would you like to use?",
+  });
+
+  return selected.key;
+}
+
 // ── Confirmation prompt ────────────────────────────────
 
 /**

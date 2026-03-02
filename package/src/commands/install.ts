@@ -11,7 +11,8 @@ import path from "node:path";
 import { theme } from "../ui/theme.js";
 import { renderBox } from "../ui/box.js";
 import { requireWorkflow, getAllWorkflows } from "../workflows/registry.js";
-import { cloneSource, getRepoInfo } from "../installer/github-source.js";
+import { cloneSource, fetchBranches, getRepoInfo } from "../installer/github-source.js";
+import { promptBranch, promptConfirm } from "../ui/menu.js";
 import { isDirectory } from "../installer/file-ops.js";
 import { installFiles } from "../modules/file-installer.js";
 import { installEntryPoint } from "../modules/entry-point.js";
@@ -101,8 +102,22 @@ export async function runInstallCLI(args: string[]): Promise<void> {
     process.exit(0);
   }
 
-  // Show install plan
+  // Branch selection
   const repo = getRepoInfo(config.source);
+  let branch = config.source.branch;
+  console.log();
+  const useDefault = await promptConfirm("Would you like to install the default Fluid Flow?");
+  if (!useDefault) {
+    const branches = fetchBranches(config.source);
+    if (branches.length > 0) {
+      branch = await promptBranch(branches, { defaultBranch: config.source.branch });
+    } else {
+      console.log();
+      console.log(theme.textWarning("  Could not fetch branch list. Using default branch."));
+    }
+  }
+
+  // Show install plan
   console.log();
   console.log(
     renderBox(
@@ -111,6 +126,7 @@ export async function runInstallCLI(args: string[]): Promise<void> {
         theme.brandBold(`  Installing ${config.name}`),
         "",
         `  ${theme.textSecondary("Source:")}    ${theme.path(repo.fullName)}`,
+        `  ${theme.textSecondary("Branch:")}    ${theme.highlight(branch)}`,
         `  ${theme.textSecondary("Target:")}    ${theme.path(targetDir)}`,
         `  ${theme.textSecondary("Platforms:")} ${theme.highlight("Cursor IDE + GitHub Copilot")}`,
         "",
@@ -123,7 +139,7 @@ export async function runInstallCLI(args: string[]): Promise<void> {
   // Execute install
   try {
     console.log(`  ${theme.brandBright("\u2192")} ${theme.text("Downloading latest from GitHub...")}`);
-    const source = await cloneSource(config.source.branch, config.source);
+    const source = await cloneSource(branch, config.source);
 
     try {
       const fileResult = await installFiles(config, targetDir, source.localPath);
@@ -148,7 +164,6 @@ export async function runInstallCLI(args: string[]): Promise<void> {
       // Offer MCP setup after successful install
       if (config.features.includes("mcp") && config.mcp) {
         const { setupWorkflowMcp } = await import("../modules/mcp-installer.js");
-        const { promptConfirm } = await import("../ui/menu.js");
 
         console.log(theme.brandBright("  \u2500\u2500\u2500 MCP Server Configuration \u2500\u2500\u2500"));
         console.log();
