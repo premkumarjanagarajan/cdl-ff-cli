@@ -8,10 +8,10 @@
 import path from "node:path";
 import { theme } from "../ui/theme.js";
 import { renderBox } from "../ui/box.js";
-import { promptMenu, promptDirectory, promptConfirm } from "../ui/menu.js";
+import { promptMenu, promptDirectory, promptConfirm, promptBranch } from "../ui/menu.js";
 import { shortenPath } from "../utils/system.js";
 import { isDirectory } from "../installer/file-ops.js";
-import { cloneSource, getRepoInfo, getRemoteHeadSha, compareCommits, getRecentCommits } from "../installer/github-source.js";
+import { cloneSource, fetchBranches, getRepoInfo, getRemoteHeadSha, compareCommits, getRecentCommits } from "../installer/github-source.js";
 import { installFiles, updateFiles } from "../modules/file-installer.js";
 import { installEntryPoint } from "../modules/entry-point.js";
 import {
@@ -151,8 +151,22 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
     return;
   }
 
-  // Step 3: Show install plan
+  // Step 3: Branch selection
   const repo = getRepoInfo(config.source);
+  let branch = config.source.branch;
+  console.log();
+  const useDefault = await promptConfirm("Would you like to install the default Fluid Flow?");
+  if (!useDefault) {
+    const branches = fetchBranches(config.source);
+    if (branches.length > 0) {
+      branch = await promptBranch(branches, { defaultBranch: config.source.branch });
+    } else {
+      console.log();
+      console.log(theme.textWarning("  Could not fetch branch list. Using default branch."));
+    }
+  }
+
+  // Step 4: Show install plan
   console.log();
   console.log(
     renderBox(
@@ -161,6 +175,7 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
         theme.brandBold(`  Installing ${config.name}`),
         "",
         `  ${theme.textSecondary("Source:")}    ${theme.path(repo.fullName)}`,
+        `  ${theme.textSecondary("Branch:")}    ${theme.highlight(branch)}`,
         `  ${theme.textSecondary("Target:")}    ${theme.path(shortenPath(targetDir))}`,
         `  ${theme.textSecondary("Platforms:")} ${theme.highlight("Cursor IDE + GitHub Copilot")}`,
         "",
@@ -170,10 +185,10 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
   );
   console.log();
 
-  // Step 4: Execute install
+  // Step 5: Execute install
   try {
     console.log(`  ${theme.brandBright("\u2192")} ${theme.text("Downloading latest from GitHub...")}`);
-    const source = await cloneSource(config.source.branch, config.source);
+    const source = await cloneSource(branch, config.source);
 
     try {
       // Copy workflow files
@@ -268,22 +283,46 @@ async function handleUpdate(config: WorkflowConfig): Promise<void> {
 
   const previousSha = entry.commitSha;
 
-  // Check for updates
-  console.log(`  ${theme.brandBright("\u2192")} ${theme.text("Checking for updates...")}`);
-  const latestSha = getRemoteHeadSha(entry.branch, config.source);
+  // Branch selection
+  let branch = entry.branch;
+  console.log();
+  const useCurrent = await promptConfirm("Would you like to update from the current branch?");
+  if (!useCurrent) {
+    const branches = fetchBranches(config.source);
+    if (branches.length > 0) {
+      branch = await promptBranch(branches, {
+        defaultBranch: config.source.branch,
+        currentBranch: entry.branch,
+      });
+    } else {
+      console.log();
+      console.log(theme.textWarning("  Could not fetch branch list. Using current branch."));
+    }
+  }
 
-  if (latestSha && latestSha === previousSha) {
+  const branchChanged = branch !== entry.branch;
+
+  // Check for updates (skip when switching branches)
+  if (!branchChanged) {
+    console.log(`  ${theme.brandBright("\u2192")} ${theme.text("Checking for updates...")}`);
+    const latestSha = getRemoteHeadSha(branch, config.source);
+
+    if (latestSha && latestSha === previousSha) {
+      console.log();
+      console.log(
+        `  ${theme.textSuccess("\u2713")} ${theme.text("Already up to date.")} (${previousSha.slice(0, 8)})`
+      );
+      console.log();
+      return;
+    }
+  } else {
     console.log();
-    console.log(
-      `  ${theme.textSuccess("\u2713")} ${theme.text("Already up to date.")} (${previousSha.slice(0, 8)})`
-    );
-    console.log();
-    return;
+    console.log(`  ${theme.textSecondary("Branch:")}  ${theme.text(entry.branch)} ${theme.brandBright("→")} ${theme.highlight(branch)}`);
   }
 
   // Download and update
   console.log(`  ${theme.brandBright("\u2192")} ${theme.text("Downloading latest from GitHub...")}`);
-  const source = await cloneSource(entry.branch, config.source);
+  const source = await cloneSource(branch, config.source);
 
   try {
     const fileResult = await updateFiles(config, targetDir, source.localPath);

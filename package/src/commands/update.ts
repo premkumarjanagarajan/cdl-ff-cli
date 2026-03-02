@@ -9,7 +9,8 @@
 import path from "node:path";
 import { theme } from "../ui/theme.js";
 import { requireWorkflow, getAllWorkflows } from "../workflows/registry.js";
-import { cloneSource, getRemoteHeadSha, getRepoInfo } from "../installer/github-source.js";
+import { cloneSource, fetchBranches, getRemoteHeadSha, getRepoInfo } from "../installer/github-source.js";
+import { promptBranch, promptConfirm } from "../ui/menu.js";
 import { isDirectory } from "../installer/file-ops.js";
 import { updateFiles } from "../modules/file-installer.js";
 import { installEntryPoint } from "../modules/entry-point.js";
@@ -85,6 +86,27 @@ export async function runUpdateCLI(args: string[]): Promise<void> {
     process.exit(1);
   }
 
+  // Branch selection
+  let branch = entry.branch;
+  if (!checkOnly) {
+    console.log();
+    const useCurrent = await promptConfirm("Would you like to update from the current branch?");
+    if (!useCurrent) {
+      const branches = fetchBranches(config.source);
+      if (branches.length > 0) {
+        branch = await promptBranch(branches, {
+          defaultBranch: config.source.branch,
+          currentBranch: entry.branch,
+        });
+      } else {
+        console.log();
+        console.log(theme.textWarning("  Could not fetch branch list. Using current branch."));
+      }
+    }
+  }
+
+  const branchChanged = branch !== entry.branch;
+
   // Check-only mode
   if (checkOnly) {
     const latestSha = getRemoteHeadSha(entry.branch, config.source);
@@ -109,12 +131,15 @@ export async function runUpdateCLI(args: string[]): Promise<void> {
 
   console.log();
   console.log(`  ${theme.textSecondary("Current:")}  ${theme.text(previousSha.slice(0, 8))}`);
+  if (branchChanged) {
+    console.log(`  ${theme.textSecondary("Branch:")}   ${theme.text(entry.branch)} ${theme.brandBright("→")} ${theme.highlight(branch)}`);
+  }
   console.log();
 
-  // Check if update needed
-  if (!force) {
+  // Check if update needed (skip when switching branches)
+  if (!force && !branchChanged) {
     console.log(`  ${theme.brandBright("\u2192")} ${theme.text("Checking for updates...")}`);
-    const latestSha = getRemoteHeadSha(entry.branch, config.source);
+    const latestSha = getRemoteHeadSha(branch, config.source);
     if (latestSha && latestSha === previousSha) {
       console.log();
       console.log(`  ${theme.textSuccess("\u2713")} ${theme.text("Already up to date.")} (${previousSha.slice(0, 8)})`);
@@ -125,7 +150,7 @@ export async function runUpdateCLI(args: string[]): Promise<void> {
 
   try {
     console.log(`  ${theme.brandBright("\u2192")} ${theme.text("Downloading latest from GitHub...")}`);
-    const source = await cloneSource(entry.branch, config.source);
+    const source = await cloneSource(branch, config.source);
 
     try {
       const fileResult = await updateFiles(config, targetDir, source.localPath);

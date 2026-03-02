@@ -133,6 +133,44 @@ export function getRepoInfo(source?: SourceConfig) {
   };
 }
 
+// -- Branch listing -----------------------------------------------------------
+
+/**
+ * Fetch available branch names from a remote repository.
+ * Tries gh API first (authenticated), falls back to git ls-remote.
+ * Returns an empty array on total failure (callers handle fallback).
+ */
+export function fetchBranches(source?: SourceConfig): string[] {
+  const { owner, repo, url } = resolveSource(source);
+
+  try {
+    const raw = execSync(
+      `gh api "repos/${owner}/${repo}/branches?per_page=100" --jq ".[].name"`,
+      { encoding: "utf-8", stdio: "pipe", timeout: 15_000 }
+    ).trim();
+    if (raw) return raw.split("\n").filter(Boolean);
+  } catch {
+    // Fall through to git ls-remote
+  }
+
+  try {
+    const raw = execSync(
+      `git ls-remote --heads "${url}"`,
+      { encoding: "utf-8", stdio: "pipe", timeout: 15_000 }
+    ).trim();
+    if (raw) {
+      return raw
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => line.replace(/^.*refs\/heads\//, ""));
+    }
+  } catch {
+    // Fall through
+  }
+
+  return [];
+}
+
 // -- Commit comparison --------------------------------------------------------
 
 export type FileChangeStatus =
