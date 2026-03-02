@@ -23,6 +23,7 @@ import {
   generateBashUpdateScript,
   generatePowerShellUpdateScript,
 } from "../updater/update-script.js";
+import { registerCliSelfUpdate } from "../modules/registration.js";
 
 // ── CLI source repository ────────────────────────────────────────────────────
 
@@ -249,6 +250,8 @@ export async function runSelfUpdateCLI(args: string[] = []): Promise<void> {
     console.log();
     return;
   }
+
+  registerCliSelfUpdate(localSha, remoteSha);
 
   // Generate and run the external update script
   await launchExternalUpdate(gitRoot, localSha);

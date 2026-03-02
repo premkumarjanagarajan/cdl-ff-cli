@@ -18,6 +18,7 @@ import {
   writeWorkflowManifest,
   updateManifestEntry,
 } from "../modules/manifest.js";
+import { registerWorkflowUpdate } from "../modules/registration.js";
 
 // -- CLI entry point ----------------------------------------------------------
 
@@ -140,6 +141,7 @@ export async function runUpdateCLI(args: string[]): Promise<void> {
         platform: "both",
       });
       writeWorkflowManifest(targetDir, config.id, updatedEntry);
+      registerWorkflowUpdate(config.id, config.name, targetDir, previousSha, source.commitSha);
 
       console.log();
       console.log(`  ${theme.textSuccess("\u2713")} ${theme.brandBold(`${config.name} updated successfully!`)}`);

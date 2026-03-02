@@ -97,3 +97,62 @@ export function getLocalHeadSha(): string | null {
     return null;
   }
 }
+
+// -- Registration helpers -----------------------------------------------------
+
+/** Return the full git user.name (not truncated to first name). */
+export function getGitUserName(): string | null {
+  try {
+    const name = execSync("git config user.name", {
+      encoding: "utf-8",
+      stdio: "pipe",
+    }).trim();
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Return the git user.email. */
+export function getGitEmail(): string | null {
+  try {
+    const email = execSync("git config user.email", {
+      encoding: "utf-8",
+      stdio: "pipe",
+    }).trim();
+    return email || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Return the system hostname. */
+export function getHostname(): string {
+  return os.hostname();
+}
+
+/** Return OS info as "platform arch release" (e.g. "darwin arm64 24.3.0"). */
+export function getOSInfo(): string {
+  return `${process.platform} ${process.arch} ${os.release()}`;
+}
+
+/**
+ * Read the git remote origin URL for a given directory and normalize
+ * it to "owner/repo" format. Returns null if not a git repo or no
+ * origin remote is configured.
+ */
+export function getTargetRepoRemote(dir: string): string | null {
+  try {
+    const url = execSync("git remote get-url origin", {
+      cwd: dir,
+      encoding: "utf-8",
+      stdio: "pipe",
+    }).trim();
+    if (!url) return null;
+    return url
+      .replace(/\.git$/, "")
+      .replace(/.*github\.com[:/]/, "");
+  } catch {
+    return null;
+  }
+}

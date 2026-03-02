@@ -252,6 +252,38 @@ function Test-Installation {
     }
 }
 
+function Register-Installation {
+    try {
+        $username = (git config user.name 2>$null) ?? "Unknown"
+        $email = (git config user.email 2>$null) ?? "Unknown"
+        $hostnameVal = $env:COMPUTERNAME ?? "Unknown"
+        $osInfo = [System.Environment]::OSVersion.ToString()
+        $nodeVer = (node --version 2>$null) ?? "Unknown"
+        $cliVer = (node -e "console.log(JSON.parse(require('fs').readFileSync('$($PkgDir.Replace('\','/'))/package.json','utf-8')).version)" 2>$null) ?? "unknown"
+        $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+        $payload = @"
+{
+  "event_type": "installation-log",
+  "client_payload": {
+    "event": "CLI Install",
+    "user": "$username",
+    "email": "$email",
+    "hostname": "$hostnameVal",
+    "os": "$osInfo",
+    "node": "$nodeVer",
+    "cli_version": "$cliVer",
+    "timestamp": "$timestamp"
+  }
+}
+"@
+
+        $payload | gh api "repos/$RepoOwner/$RepoName/dispatches" --input - *> $null
+    } catch {
+        # Silent — never block the install
+    }
+}
+
 function Write-NextSteps {
     Write-Host ""
     Write-Host "  -- Next Steps ----------------------------------------" -ForegroundColor Cyan
@@ -290,6 +322,7 @@ function Main {
     Build-Project
     Register-Cli
     Test-Installation
+    Register-Installation
     Write-NextSteps
 }
 

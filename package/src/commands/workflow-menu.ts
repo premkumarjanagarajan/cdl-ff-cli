@@ -23,6 +23,7 @@ import {
   getManifestFileName,
 } from "../modules/manifest.js";
 import { setupWorkflowMcp, analyzeAllWorkflowTargets, loadMcpServers } from "../modules/mcp-installer.js";
+import { registerWorkflowInstall, registerWorkflowUpdate } from "../modules/registration.js";
 import type { WorkflowConfig } from "../workflows/types.js";
 import type { MenuItem } from "../ui/menu.js";
 
@@ -194,6 +195,7 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
         installedPaths,
       });
       writeWorkflowManifest(targetDir, config.id, manifestEntry);
+      registerWorkflowInstall(config.id, config.name, targetDir, source.commitSha);
 
       // Show success
       console.log();
@@ -297,6 +299,7 @@ async function handleUpdate(config: WorkflowConfig): Promise<void> {
       platform: "both",
     });
     writeWorkflowManifest(targetDir, config.id, updatedEntry);
+    registerWorkflowUpdate(config.id, config.name, targetDir, previousSha, source.commitSha);
 
     console.log();
     console.log(
