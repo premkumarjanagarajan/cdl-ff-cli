@@ -49,7 +49,7 @@ ff
 **Windows (PowerShell):**
 
 ```powershell
-gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | iex
+$f="$env:TEMP\ff-install.ps1"; gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | Set-Content $f -Encoding UTF8; & $f
 cd C:\path\to\your-project
 ff
 ```
@@ -184,7 +184,7 @@ This script will:
 **One-line install (PowerShell):**
 
 ```powershell
-gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | iex
+$f="$env:TEMP\ff-install.ps1"; gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | Set-Content $f -Encoding UTF8; & $f
 ```
 
 > **Execution policy:** If you get an execution policy error, run this first:
@@ -774,7 +774,7 @@ cd ~/.ff-cli && git pull origin main && cd package && npm install && npm run bui
 **Windows (PowerShell):**
 ```powershell
 # Option A: Re-run the install script
-gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | iex
+$f="$env:TEMP\ff-install.ps1"; gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | Set-Content $f -Encoding UTF8; & $f
 
 # Option B: Manual update
 cd $env:USERPROFILE\.ff-cli; git pull origin main; cd package; npm install; npm run build
