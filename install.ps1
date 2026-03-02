@@ -1,7 +1,7 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Fluid Flow CLI — One-line installer for Windows.
+    Fluid Flow CLI - One-line installer for Windows.
 
 .DESCRIPTION
     Downloads and installs the Fluid Flow CLI (ff) on Windows.
@@ -9,8 +9,8 @@
     Requires GitHub CLI (gh) for private repository access.
 
 .EXAMPLE
-    # Run directly (private repo — requires GitHub CLI):
-    gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | iex
+    # Windows one-liner (recommended):
+    $f="$env:TEMP\ff-install.ps1"; gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | Set-Content $f -Encoding UTF8; & $f
 
     # Or clone and run locally:
     gh repo clone BetssonGroup/cdl-ff-cli $env:TEMP\cdl-ff-cli
@@ -20,20 +20,20 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# ── Config ──────────────────────────────────────────────
+# -- Config --------------------------------------------------------
 $RepoOwner    = "BetssonGroup"
 $RepoName     = "cdl-ff-cli"
 $InstallDir   = Join-Path $env:USERPROFILE ".ff-cli"
 $PkgDir       = Join-Path $InstallDir "package"
 $MinNodeMajor = 20
 
-# ── Helpers ─────────────────────────────────────────────
+# -- Helpers -------------------------------------------------------
 
 function Write-Header {
     Write-Host ""
     Write-Host "  +-------------------------------------------+" -ForegroundColor Cyan
     Write-Host "  |                                           |" -ForegroundColor Cyan
-    Write-Host "  |       Fluid Flow CLI — Installer          |" -ForegroundColor Cyan
+    Write-Host "  |       Fluid Flow CLI - Installer          |" -ForegroundColor Cyan
     Write-Host "  |                                           |" -ForegroundColor Cyan
     Write-Host "  +-------------------------------------------+" -ForegroundColor Cyan
     Write-Host ""
@@ -44,7 +44,7 @@ function Write-Success { param([string]$Msg) Write-Host "  [OK] $Msg" -Foregroun
 function Write-Warn    { param([string]$Msg) Write-Host "  [!] $Msg" -ForegroundColor Yellow }
 function Write-Fail    { param([string]$Msg) Write-Host "  [X] $Msg" -ForegroundColor Red; exit 1 }
 
-# ── Prerequisite Checks ────────────────────────────────
+# -- Prerequisite Checks -------------------------------------------
 
 function Test-Node {
     $nodePath = Get-Command node -ErrorAction SilentlyContinue
@@ -56,7 +56,7 @@ function Test-Node {
     $major = [int]($nodeVersion -split '\.')[0]
 
     if ($major -lt $MinNodeMajor) {
-        Write-Fail "Node.js $nodeVersion detected — version >= $MinNodeMajor.0.0 is required. Please upgrade: https://nodejs.org/"
+        Write-Fail "Node.js $nodeVersion detected -- version >= $MinNodeMajor.0.0 is required. Please upgrade: https://nodejs.org/"
     }
 
     Write-Success "Node.js v$nodeVersion"
@@ -75,7 +75,7 @@ function Test-Git {
 function Test-Npm {
     $npmPath = Get-Command npm -ErrorAction SilentlyContinue
     if (-not $npmPath) {
-        Write-Fail "npm is not installed. It should come with Node.js — try reinstalling Node.js."
+        Write-Fail "npm is not installed. It should come with Node.js -- try reinstalling Node.js."
     }
 
     $npmVersion = npm --version
@@ -111,7 +111,7 @@ function Test-Gh {
     Write-Success "Access to $RepoOwner/$RepoName verified"
 }
 
-# ── Install / Update ───────────────────────────────────
+# -- Install / Update ---------------------------------------------
 
 function Install-OrUpdate {
     $gitDir = Join-Path $InstallDir ".git"
@@ -203,7 +203,7 @@ function Register-Cli {
         npm unlink -g "@fluidflow/cli" 2>$null
         npm link --silent 2>$null
         if ($LASTEXITCODE -ne 0) {
-            Write-Warn "npm link returned a non-zero exit code — attempting to verify..."
+            Write-Warn "npm link returned a non-zero exit code -- attempting to verify..."
         } else {
             Write-Success "CLI linked globally"
         }
@@ -219,7 +219,7 @@ function Test-Installation {
     if ($ffCmd) {
         try {
             $version = ff --version 2>$null
-            Write-Success "Installation successful! — $version"
+            Write-Success "Installation successful! - $version"
         } catch {
             Write-Success "Installation successful! (could not read version)"
         }
@@ -254,12 +254,12 @@ function Test-Installation {
 
 function Register-Installation {
     try {
-        $username = (git config user.name 2>$null) ?? "Unknown"
-        $email = (git config user.email 2>$null) ?? "Unknown"
-        $hostnameVal = $env:COMPUTERNAME ?? "Unknown"
+        $username = git config user.name 2>$null; if (-not $username) { $username = "Unknown" }
+        $email = git config user.email 2>$null; if (-not $email) { $email = "Unknown" }
+        $hostnameVal = $env:COMPUTERNAME; if (-not $hostnameVal) { $hostnameVal = "Unknown" }
         $osInfo = [System.Environment]::OSVersion.ToString()
-        $nodeVer = (node --version 2>$null) ?? "Unknown"
-        $cliVer = (node -e "console.log(JSON.parse(require('fs').readFileSync('$($PkgDir.Replace('\','/'))/package.json','utf-8')).version)" 2>$null) ?? "unknown"
+        $nodeVer = node --version 2>$null; if (-not $nodeVer) { $nodeVer = "Unknown" }
+        $cliVer = node -e "console.log(JSON.parse(require('fs').readFileSync('$($PkgDir.Replace('\','/'))/package.json','utf-8')).version)" 2>$null; if (-not $cliVer) { $cliVer = "unknown" }
         $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
         $payload = @"
@@ -280,7 +280,7 @@ function Register-Installation {
 
         $payload | gh api "repos/$RepoOwner/$RepoName/dispatches" --input - *> $null
     } catch {
-        # Silent — never block the install
+        # Silent -- never block the install
     }
 }
 
@@ -302,7 +302,7 @@ function Write-NextSteps {
     Write-Host ""
 }
 
-# ── Main ────────────────────────────────────────────────
+# -- Main ----------------------------------------------------------
 
 function Main {
     Write-Header
