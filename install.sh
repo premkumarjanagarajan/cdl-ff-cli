@@ -30,6 +30,7 @@ RESET='\033[0m'
 REPO_OWNER="BetssonGroup"
 REPO_NAME="cdl-ff-cli"
 INSTALL_DIR="$HOME/.ff-cli"
+PKG_DIR="$INSTALL_DIR/package"
 MIN_NODE_MAJOR=20
 
 # ── Helpers ─────────────────────────────────────────────
@@ -115,52 +116,66 @@ check_gh() {
 # ── Install / Update ───────────────────────────────────
 
 clone_or_update() {
-  if [ -d "$INSTALL_DIR" ]; then
+  if [ -d "$INSTALL_DIR/.git" ]; then
     info "Existing installation found at ${BOLD}${INSTALL_DIR}${RESET}"
     info "Updating to latest version..."
 
     cd "$INSTALL_DIR"
 
-    # Stash any local changes
     git stash --quiet 2>/dev/null || true
-
-    # Ensure gh credentials are available for git fetch (private repo)
     gh auth setup-git 2>/dev/null || true
 
-    # Pull latest
     git fetch origin main --quiet
     git checkout main --quiet 2>/dev/null || true
     git reset --hard origin/main --quiet
+
+    # Migrate legacy full-clone installs to sparse checkout
+    if ! git sparse-checkout list &>/dev/null 2>&1; then
+      info "Migrating to sparse checkout..."
+      git sparse-checkout init --cone
+      git sparse-checkout set package
+      git checkout main --quiet 2>/dev/null || true
+    fi
 
     success "Updated to latest"
   else
     info "Cloning ${REPO_OWNER}/${REPO_NAME} to ${BOLD}${INSTALL_DIR}${RESET}..."
 
-    # Use gh for authenticated clone (private repo)
-    gh repo clone "${REPO_OWNER}/${REPO_NAME}" "$INSTALL_DIR" -- --depth=1
-    success "Repository cloned"
+    mkdir -p "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
+    git init --quiet
+    gh auth setup-git 2>/dev/null || true
+    git remote add origin "https://github.com/${REPO_OWNER}/${REPO_NAME}.git"
+
+    # Only materialize the package/ subfolder on user machines
+    git sparse-checkout init --cone
+    git sparse-checkout set package
+
+    git fetch --depth=1 origin main --quiet
+    git checkout main --quiet
+
+    success "Repository cloned (sparse)"
   fi
 }
 
 install_deps() {
   info "Installing dependencies..."
-  cd "$INSTALL_DIR"
+  cd "$PKG_DIR"
   npm install --silent --no-fund --no-audit 2>/dev/null
   success "Dependencies installed"
 }
 
 build_project() {
   info "Building TypeScript source..."
-  cd "$INSTALL_DIR"
+  cd "$PKG_DIR"
   npm run build --silent 2>/dev/null
   success "Build complete"
 }
 
 link_cli() {
   info "Linking CLI globally..."
-  cd "$INSTALL_DIR"
+  cd "$PKG_DIR"
 
-  # Unlink first if already linked (avoid errors)
   npm unlink -g @fluidflow/cli 2>/dev/null || true
   npm link --silent 2>/dev/null
 
@@ -192,10 +207,41 @@ verify_install() {
     else
       warn "Link may not have completed. Try running manually:"
       echo ""
-      echo -e "    ${DIM}cd ~/.ff-cli && npm link${RESET}"
+      echo -e "    ${DIM}cd ~/.ff-cli/package && npm link${RESET}"
       echo ""
     fi
   fi
+}
+
+register_install() {
+  local username email hostname_val os_info node_ver cli_ver timestamp payload
+
+  username=$(git config user.name 2>/dev/null || echo "Unknown")
+  email=$(git config user.email 2>/dev/null || echo "Unknown")
+  hostname_val=$(hostname 2>/dev/null || echo "Unknown")
+  os_info="$(uname -s) $(uname -m) $(uname -r)"
+  node_ver=$(node --version 2>/dev/null || echo "Unknown")
+  cli_ver=$(node -e "console.log(JSON.parse(require('fs').readFileSync('${PKG_DIR}/package.json','utf-8')).version)" 2>/dev/null || echo "unknown")
+  timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  payload=$(cat <<PEOF
+{
+  "event_type": "installation-log",
+  "client_payload": {
+    "event": "CLI Install",
+    "user": "${username}",
+    "email": "${email}",
+    "hostname": "${hostname_val}",
+    "os": "${os_info}",
+    "node": "${node_ver}",
+    "cli_version": "${cli_ver}",
+    "timestamp": "${timestamp}"
+  }
+}
+PEOF
+)
+
+  echo "$payload" | gh api repos/${REPO_OWNER}/${REPO_NAME}/dispatches --input - 2>/dev/null || true
 }
 
 print_next_steps() {
@@ -236,6 +282,7 @@ main() {
   build_project
   link_cli
   verify_install
+  register_install
   print_next_steps
 }
 

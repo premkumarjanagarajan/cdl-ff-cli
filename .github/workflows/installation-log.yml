@@ -1,0 +1,61 @@
+name: Installation Log
+
+on:
+  repository_dispatch:
+    types: [installation-log]
+
+jobs:
+  log:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout wiki
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.wiki.git" wiki
+
+      - name: Append log entry
+        run: |
+          cd wiki
+          FILE="Installation-Log.md"
+
+          if [ ! -f "$FILE" ]; then
+            cat > "$FILE" <<'HEADER'
+          # Installation Log
+
+          | Date | Event | User | Email | Hostname | OS | Node | CLI Version | Workflow | Folder | Project Repo | From SHA | To SHA |
+          |------|-------|------|-------|----------|----|------|-------------|----------|--------|--------------|----------|--------|
+          HEADER
+            # Strip leading whitespace from heredoc
+            sed -i 's/^          //' "$FILE"
+          fi
+
+          # Build the row — empty string for missing optional fields
+          EVENT='${{ github.event.client_payload.event }}'
+          USER='${{ github.event.client_payload.user }}'
+          EMAIL='${{ github.event.client_payload.email }}'
+          HOSTNAME='${{ github.event.client_payload.hostname }}'
+          OS='${{ github.event.client_payload.os }}'
+          NODE='${{ github.event.client_payload.node }}'
+          CLI_VER='${{ github.event.client_payload.cli_version }}'
+          WORKFLOW='${{ github.event.client_payload.workflow }}'
+          FOLDER='${{ github.event.client_payload.folder }}'
+          PROJECT_REPO='${{ github.event.client_payload.project_repo }}'
+          FROM_SHA='${{ github.event.client_payload.from_sha }}'
+          TO_SHA='${{ github.event.client_payload.to_sha }}'
+          TIMESTAMP='${{ github.event.client_payload.timestamp }}'
+
+          echo "| ${TIMESTAMP} | ${EVENT} | ${USER} | ${EMAIL} | ${HOSTNAME} | ${OS} | ${NODE} | ${CLI_VER} | ${WORKFLOW:-—} | ${FOLDER:-—} | ${PROJECT_REPO:-—} | ${FROM_SHA:-—} | ${TO_SHA:-—} |" >> "$FILE"
+
+      - name: Push to wiki
+        run: |
+          cd wiki
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "log: ${{ github.event.client_payload.event }} — ${{ github.event.client_payload.user }}"
+          git push

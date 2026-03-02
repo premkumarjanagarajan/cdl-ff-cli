@@ -171,13 +171,13 @@ gh api repos/BetssonGroup/cdl-ff-cli/contents/install.sh -H "Accept:application/
 This script will:
 1. Verify Node.js >= 20, Git, npm, and GitHub CLI are installed and authenticated
 2. Verify access to `BetssonGroup/cdl-ff-cli`
-3. Clone the repository to `~/.ff-cli` using `gh`
+3. Clone the repository to `~/.ff-cli` using git sparse checkout (only the `package/` subfolder is materialized)
 4. Install dependencies (`npm install`)
 5. Build the TypeScript source (`npm run build`)
 6. Link the CLI globally (`npm link`) — makes `ff` and `fluidflow` available everywhere
 7. Verify the installation
 
-**Re-running the script updates to the latest version** (it's idempotent).
+**Re-running the script updates to the latest version** (it's idempotent). Existing full-clone installs are automatically migrated to sparse checkout.
 
 ### Windows
 
@@ -195,13 +195,13 @@ gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application
 This script will:
 1. Verify Node.js >= 20, Git, npm, and GitHub CLI are installed and authenticated
 2. Verify access to `BetssonGroup/cdl-ff-cli`
-3. Clone the repository to `%USERPROFILE%\.ff-cli` using `gh`
+3. Clone the repository to `%USERPROFILE%\.ff-cli` using git sparse checkout (only the `package/` subfolder is materialized)
 4. Install dependencies (`npm install`)
 5. Build the TypeScript source (`npm run build`)
 6. Link the CLI globally (`npm link`) — makes `ff` and `fluidflow` available everywhere
 7. Verify the installation
 
-**Re-running the script updates to the latest version** (it's idempotent).
+**Re-running the script updates to the latest version** (it's idempotent). Existing full-clone installs are automatically migrated to sparse checkout.
 
 ### Manual Install (Any OS)
 
@@ -211,8 +211,8 @@ Works on macOS, Linux, and Windows:
 # 1. Clone the repository (uses gh for authenticated access)
 gh repo clone BetssonGroup/cdl-ff-cli ~/.ff-cli
 
-# 2. Install dependencies
-cd ~/.ff-cli
+# 2. Install dependencies (from the package/ subdirectory)
+cd ~/.ff-cli/package
 npm install
 
 # 3. Build the project
@@ -231,7 +231,7 @@ ff --version
 
 ```bash
 gh repo clone BetssonGroup/cdl-ff-cli ~/.ff-cli -- --branch <branch-name>
-cd ~/.ff-cli && npm install && npm run build && npm link
+cd ~/.ff-cli/package && npm install && npm run build && npm link
 ```
 
 ---
@@ -702,7 +702,7 @@ If TypeScript compilation fails:
 
 **macOS / Linux:**
 ```bash
-cd ~/.ff-cli
+cd ~/.ff-cli/package
 rm -rf dist node_modules
 npm install
 npm run build
@@ -710,7 +710,7 @@ npm run build
 
 **Windows:**
 ```powershell
-cd $env:USERPROFILE\.ff-cli
+cd $env:USERPROFILE\.ff-cli\package
 Remove-Item -Recurse -Force dist, node_modules -ErrorAction SilentlyContinue
 npm install
 npm run build
@@ -724,13 +724,13 @@ npm run build
 
 **macOS / Linux:**
 ```bash
-cd ~/.ff-cli && npm unlink -g
+cd ~/.ff-cli/package && npm unlink -g
 rm -rf ~/.ff-cli
 ```
 
 **Windows (PowerShell):**
 ```powershell
-Push-Location $env:USERPROFILE\.ff-cli
+Push-Location $env:USERPROFILE\.ff-cli\package
 npm unlink -g
 Pop-Location
 Remove-Item -Recurse -Force $env:USERPROFILE\.ff-cli
@@ -768,7 +768,7 @@ Remove-Item -Recurse -Force .github\instructions -ErrorAction SilentlyContinue
 gh api repos/BetssonGroup/cdl-ff-cli/contents/install.sh -H "Accept:application/vnd.github.raw" | bash
 
 # Option B: Manual update
-cd ~/.ff-cli && git pull origin main && npm install && npm run build
+cd ~/.ff-cli && git pull origin main && cd package && npm install && npm run build
 ```
 
 **Windows (PowerShell):**
@@ -777,7 +777,7 @@ cd ~/.ff-cli && git pull origin main && npm install && npm run build
 gh api repos/BetssonGroup/cdl-ff-cli/contents/install.ps1 -H "Accept:application/vnd.github.raw" | iex
 
 # Option B: Manual update
-cd $env:USERPROFILE\.ff-cli; git pull origin main; npm install; npm run build
+cd $env:USERPROFILE\.ff-cli; git pull origin main; cd package; npm install; npm run build
 ```
 
 ---
@@ -825,54 +825,68 @@ graph TD
     style Target fill:#0d1117,stroke:#3fb950,color:#fff
 ```
 
-### Project Structure
+### Repository Structure
+
+The repo uses a split layout: `package/` contains the distributable CLI (what gets installed on user machines via sparse checkout), while the root holds development infrastructure.
 
 ```
-ff-cli/
-├── bin/
-│   └── ff.js                      # Entry point (#!/usr/bin/env node)
-├── mcp-configs/
-│   └── dev-mcp.json               # MCP server definitions for dev workflow
-├── src/
-│   ├── index.ts                   # Main CLI — dynamic multi-workflow menu
-│   ├── workflows/
-│   │   ├── types.ts               # WorkflowConfig, Platform, manifest types
-│   │   ├── registry.ts            # Central registry of all workflow configs
-│   │   └── configs/
-│   │       └── dev.ts             # Development workflow configuration
-│   ├── modules/
-│   │   ├── file-installer.ts      # Generic file copy from source to target
-│   │   ├── entry-point.ts         # Platform-specific entry point installer
-│   │   ├── mcp-installer.ts       # MCP setup (reads from JSON config files)
-│   │   └── manifest.ts            # Multi-workflow manifest (v2) manager
-│   ├── commands/
-│   │   ├── workflow-menu.ts       # Per-workflow sub-menu (Install/Update/Verify/MCP)
-│   │   ├── install.ts             # CLI: ff install <workflow> [options]
-│   │   ├── update.ts              # CLI: ff update <workflow> [options]
-│   │   ├── verify.ts              # CLI: ff verify [target-dir]
-│   │   ├── mcp-setup.ts           # CLI: ff mcp <workflow> [options]
-│   │   └── registry.ts            # REPL command registry
-│   ├── installer/
-│   │   ├── index.ts               # Legacy install/update orchestration
-│   │   ├── github-source.ts       # GitHub repo cloning (parameterized per workflow)
-│   │   ├── manifest.ts            # Legacy v1 manifest (kept for compat)
-│   │   ├── mcp-setup.ts           # MCP setup infrastructure (builders, prereqs)
-│   │   ├── file-ops.ts            # File system operations
-│   │   └── copilot-adapter.ts     # Copilot-specific transformations
-│   ├── ui/
-│   │   ├── theme.ts               # Colors and styling
-│   │   ├── welcome.ts             # Welcome banner
-│   │   ├── menu.ts                # Interactive menus
-│   │   ├── prompt.ts              # User prompts
-│   │   ├── box.ts                 # Box rendering
-│   │   ├── statusBar.ts           # Status bar
-│   │   └── ascii.ts               # ASCII art
-│   └── utils/
-│       └── system.ts              # System utilities
-├── package.json
-├── tsconfig.json
+cdl-ff-cli/
+├── package/                       # Distributable CLI (sparse-checked-out to ~/.ff-cli)
+│   ├── bin/
+│   │   └── ff.js                  # Entry point (#!/usr/bin/env node)
+│   ├── mcp-configs/
+│   │   └── dev-mcp.json           # MCP server definitions for dev workflow
+│   ├── src/
+│   │   ├── index.ts               # Main CLI — dynamic multi-workflow menu
+│   │   ├── cli.ts                 # CLI command router
+│   │   ├── workflows/
+│   │   │   ├── types.ts           # WorkflowConfig, Platform, manifest types
+│   │   │   ├── registry.ts        # Central registry of all workflow configs
+│   │   │   └── configs/
+│   │   │       └── dev.ts         # Development workflow configuration
+│   │   ├── modules/
+│   │   │   ├── file-installer.ts  # Generic file copy from source to target
+│   │   │   ├── entry-point.ts     # Platform-specific entry point installer
+│   │   │   ├── mcp-installer.ts   # MCP setup (reads from JSON config files)
+│   │   │   └── manifest.ts        # Multi-workflow manifest (v2) manager
+│   │   ├── commands/
+│   │   │   ├── workflow-menu.ts   # Per-workflow sub-menu (Install/Update/Verify/MCP)
+│   │   │   ├── install.ts         # CLI: ff install <workflow> [options]
+│   │   │   ├── update.ts          # CLI: ff update <workflow> [options]
+│   │   │   ├── verify.ts          # CLI: ff verify [target-dir]
+│   │   │   ├── mcp-setup.ts       # CLI: ff mcp <workflow> [options]
+│   │   │   ├── self-update.ts     # CLI: ff self-update
+│   │   │   └── registry.ts        # REPL command registry
+│   │   ├── installer/
+│   │   │   ├── index.ts           # Legacy install/update orchestration
+│   │   │   ├── github-source.ts   # GitHub repo cloning (parameterized per workflow)
+│   │   │   ├── manifest.ts        # Legacy v1 manifest (kept for compat)
+│   │   │   ├── mcp-setup.ts       # MCP setup infrastructure (builders, prereqs)
+│   │   │   ├── file-ops.ts        # File system operations
+│   │   │   └── copilot-adapter.ts # Copilot-specific transformations
+│   │   ├── updater/
+│   │   │   └── update-script.ts   # Self-update script generator
+│   │   ├── ui/
+│   │   │   ├── theme.ts           # Colors and styling
+│   │   │   ├── welcome.ts         # Welcome banner
+│   │   │   ├── menu.ts            # Interactive menus
+│   │   │   ├── prompt.ts          # User prompts
+│   │   │   ├── box.ts             # Box rendering
+│   │   │   ├── statusBar.ts       # Status bar
+│   │   │   └── ascii.ts           # ASCII art
+│   │   └── utils/
+│   │       └── system.ts          # System utilities
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── docs/                          # Development documentation
+│   └── adding-a-workflow.md
+├── .cursor/                       # Cursor IDE config for contributors
+│   └── commands/
 ├── install.sh                     # One-line installer (macOS / Linux)
-└── install.ps1                    # One-line installer (Windows)
+├── install.ps1                    # One-line installer (Windows)
+├── README.md
+└── .gitignore
 ```
 
 ### Tech Stack

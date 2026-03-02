@@ -1,0 +1,264 @@
+# Save Conversation History
+
+# This command is a STANDALONE entry point.
+# It can be run at ANY time during a chat session to persist the conversation.
+# The AI uses its conversational context (the full chat history) as the primary data source.
+# It MUST be run in the SAME chat session where the conversation took place.
+
+## Purpose
+
+Persist the current chat session's conversation — including user prompts, AI responses,
+reasoning, decisions, and key context — into a durable markdown file within the feature's
+spec directory. This creates a complete, searchable record of the design and development
+dialogue that can be referenced in future sessions, by other team members, or for auditing.
+
+This command is **append-safe**: if a conversation history already exists for the branch,
+new session entries are appended without overwriting previous content.
+
+---
+
+## Pre-Requisites
+
+Before executing, verify:
+
+1. **Same chat session**: This command must run in the same chat session where the conversation occurred. If the conversation context is not available (e.g., new chat session with no prior messages), warn the user:
+
+   ```markdown
+   ⚠ **No Conversation Context Available**
+
+   This appears to be a new chat session with no prior conversation to save.
+   The save-conversation command captures the current session's dialogue.
+
+   If you want to review previously saved conversations, check:
+   `specs/{BRANCH_NAME}/conversation-history.md`
+   ```
+
+2. **Feature branch is active**: The command needs to resolve which branch's spec directory to write to.
+
+### Resolving BRANCH_NAME
+
+If BRANCH_NAME is not provided or available from conversation context:
+1. Check current git branch: run `git branch --show-current`
+2. If on a feature branch (matches `###-*` pattern, e.g., `001-proj-1234-add-user-auth` or `001-add-user-auth`), use that as BRANCH_NAME
+3. If not on a feature branch, list recent feature directories in `specs/` and ask the user to confirm which feature's conversation history to save to
+4. If no feature directories exist, ask the user if they want to create the spec directory manually or abort
+
+---
+
+## Execution
+
+### Step 1: Resolve Target File Path
+
+1. Determine BRANCH_NAME (see Resolving BRANCH_NAME above)
+2. Set TARGET_FILE = `specs/{BRANCH_NAME}/conversation-history.md`
+3. Check if the `specs/{BRANCH_NAME}/` directory exists:
+   - **If it does NOT exist**: Create the directory
+4. Check if TARGET_FILE already exists:
+   - **If it exists**: Mode = **APPEND** — new session will be appended
+   - **If it does NOT exist**: Mode = **CREATE** — file will be created with header + first session
+
+### Step 2: Generate Session Timestamp and Metadata
+
+Generate the following metadata for this session entry:
+
+- **Session Timestamp**: Current ISO 8601 timestamp (YYYY-MM-DDTHH:MM:SSZ)
+- **Branch**: {BRANCH_NAME}
+- **Session Summary**: A 1-2 sentence AI-generated summary of what this conversation covered
+- **Key Topics**: Comma-separated list of main topics discussed (e.g., "architecture decisions, API design, error handling")
+- **Decisions Made**: Bulleted list of any decisions reached during the conversation
+- **Open Items**: Bulleted list of unresolved questions or pending items (if any)
+
+### Step 3: Extract Conversation Content
+
+From the current chat session context, extract and organize the full conversation:
+
+1. **Capture every exchange** in chronological order:
+   - Each user message (complete, verbatim — never summarized or truncated)
+   - Each AI response (complete, including reasoning and analysis)
+   - Include tool calls and their results where relevant to understanding the conversation flow
+   - Include any code snippets, commands, or file references discussed
+
+2. **Preserve reasoning and thinking**:
+   - If the AI provided analysis, trade-off discussions, or design reasoning, capture it fully
+   - If alternatives were considered and rejected, include the rationale
+   - If the AI flagged risks, assumptions, or unknowns, include them
+
+3. **Format each exchange** as:
+
+   ```markdown
+   ### Exchange [N]
+   **Timestamp**: [ISO timestamp or "Session start" for first exchange]
+   **Direction**: User → AI | AI → User
+
+   **User**:
+   > [Complete verbatim user message, using blockquote formatting]
+
+   **AI Response**:
+   [Complete AI response including any analysis, reasoning, code, or recommendations]
+
+   **Tools/Actions**:
+   - [Any file reads, searches, edits, or shell commands executed — summarized with key outcomes]
+
+   ---
+   ```
+
+4. **For exchanges with significant reasoning**, add:
+
+   ```markdown
+   **Reasoning & Analysis**:
+   - [Key reasoning steps]
+   - [Trade-offs considered]
+   - [Assumptions stated]
+   ```
+
+### Step 4: Write or Append to File
+
+#### If Mode = CREATE
+
+Write the complete file with the following structure:
+
+```markdown
+# Conversation History — {BRANCH_NAME}
+
+> This file is auto-generated by the `fluid-flow.save-conversation` command.
+> Each session is appended chronologically. Do not manually reorder entries.
+
+**Branch**: {BRANCH_NAME}
+**Created**: [ISO timestamp]
+**Last Updated**: [ISO timestamp]
+
+---
+
+## Session 1 — [ISO timestamp]
+
+**Summary**: [1-2 sentence summary of what was discussed]
+**Key Topics**: [comma-separated topics]
+
+### Decisions Made
+- [Decision 1]
+- [Decision 2]
+- [None — if no decisions were made]
+
+### Open Items
+- [Open item 1]
+- [None — if no open items]
+
+### Conversation
+
+[All exchanges from Step 3, formatted as specified]
+
+---
+<!-- END SESSION 1 -->
+```
+
+#### If Mode = APPEND
+
+1. Read the existing `conversation-history.md` file
+2. Determine the next session number by finding the highest existing session number and incrementing by 1
+3. Update the `**Last Updated**` field in the file header to the current timestamp
+4. Append the new session block at the end of the file:
+
+```markdown
+
+## Session [N] — [ISO timestamp]
+
+**Summary**: [1-2 sentence summary of what was discussed]
+**Key Topics**: [comma-separated topics]
+
+### Decisions Made
+- [Decision 1]
+- [Decision 2]
+- [None — if no decisions were made]
+
+### Open Items
+- [Open item 1]
+- [None — if no open items]
+
+### Conversation
+
+[All exchanges from Step 3, formatted as specified]
+
+---
+<!-- END SESSION [N] -->
+```
+
+**CRITICAL**: Use append/edit operations to add the new session. NEVER read the entire file and rewrite it — this risks data loss on large files.
+
+### Step 5: Verify and Confirm
+
+1. Read the last 20 lines of the saved file to verify the session was appended correctly
+2. Present a confirmation to the user:
+
+```markdown
+## Conversation Saved ✓
+
+| Detail | Value |
+|--------|-------|
+| **File** | `specs/{BRANCH_NAME}/conversation-history.md` |
+| **Mode** | [Created / Appended] |
+| **Session** | Session [N] |
+| **Exchanges Captured** | [count] |
+| **Key Topics** | [topics] |
+| **Timestamp** | [ISO timestamp] |
+
+The conversation has been saved. You can reference it in future sessions or share it with team members.
+```
+
+---
+
+## Content Guidelines
+
+### What to Include
+
+- All user prompts and questions (verbatim, complete)
+- All AI responses and reasoning
+- Decisions made and their rationale
+- Code snippets and file references discussed
+- Tool actions and their relevant outcomes (summarized, not raw output)
+- Trade-offs considered and conclusions reached
+- Risks, assumptions, and open questions identified
+
+### What to Exclude
+
+- Raw tool output that is excessively long (e.g., full file contents of large files) — summarize instead
+- Redundant system metadata that adds no conversational value
+- Binary content or extremely long hashes
+- Sensitive credentials, secrets, or tokens (if detected, replace with `[REDACTED]`)
+
+### Handling Large Conversations
+
+If the conversation is very long (more than ~50 exchanges):
+1. Capture all exchanges but summarize repetitive tool outputs
+2. For implementation exchanges where the same pattern repeats (e.g., editing multiple similar files), capture the first instance fully and summarize the rest:
+   ```markdown
+   **[Repeated pattern — N similar exchanges summarized]**
+   Applied the same [change description] to: `file1.ts`, `file2.ts`, `file3.ts`, ...
+   ```
+3. Always preserve decision-making exchanges in full, regardless of conversation length
+
+---
+
+## Correct Tool Usage
+
+✅ CORRECT (for APPEND mode):
+1. Read the existing `conversation-history.md` file
+2. Use edit/append operations to add the new session block
+
+❌ WRONG (for APPEND mode):
+1. Read the entire `conversation-history.md` file
+2. Completely overwrite it with old content + new content (risks data loss)
+
+✅ CORRECT (for CREATE mode):
+1. Write the complete new file using the file creation tool
+
+---
+
+## Error Handling
+
+| Scenario | Action |
+|----------|--------|
+| `specs/{BRANCH_NAME}/` directory does not exist | Create it, then proceed |
+| File write fails | Inform user, suggest manual copy from chat |
+| No conversation context available | Warn user (see Pre-Requisites), abort gracefully |
+| Not on a feature branch and no specs exist | Ask user to specify a branch name or create spec directory |
+| Conversation is empty (only system messages) | Inform user there is nothing to save |

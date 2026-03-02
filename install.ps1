@@ -24,6 +24,7 @@ $ErrorActionPreference = "Stop"
 $RepoOwner    = "BetssonGroup"
 $RepoName     = "cdl-ff-cli"
 $InstallDir   = Join-Path $env:USERPROFILE ".ff-cli"
+$PkgDir       = Join-Path $InstallDir "package"
 $MinNodeMajor = 20
 
 # ── Helpers ─────────────────────────────────────────────
@@ -113,21 +114,30 @@ function Test-Gh {
 # ── Install / Update ───────────────────────────────────
 
 function Install-OrUpdate {
-    if (Test-Path $InstallDir) {
+    $gitDir = Join-Path $InstallDir ".git"
+
+    if (Test-Path $gitDir) {
         Write-Info "Existing installation found at $InstallDir"
         Write-Info "Updating to latest version..."
 
         Push-Location $InstallDir
         try {
-            # Stash any local changes
             git stash --quiet 2>$null
-
-            # Ensure gh credentials are available for git fetch (private repo)
             gh auth setup-git *> $null
 
             git fetch origin main --quiet
             git checkout main --quiet 2>$null
             git reset --hard origin/main --quiet
+
+            # Migrate legacy full-clone installs to sparse checkout
+            $sparseList = git sparse-checkout list 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Info "Migrating to sparse checkout..."
+                git sparse-checkout init --cone
+                git sparse-checkout set package
+                git checkout main --quiet 2>$null
+            }
+
             Write-Success "Updated to latest"
         } finally {
             Pop-Location
@@ -135,18 +145,32 @@ function Install-OrUpdate {
     } else {
         Write-Info "Cloning $RepoOwner/$RepoName to $InstallDir..."
 
-        # Use gh for authenticated clone (private repo)
-        gh repo clone "$RepoOwner/$RepoName" $InstallDir -- --depth=1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Fail "Failed to clone repository. Check your network connection and GitHub access."
+        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+        Push-Location $InstallDir
+        try {
+            git init --quiet
+            gh auth setup-git *> $null
+            git remote add origin "https://github.com/$RepoOwner/$RepoName.git"
+
+            # Only materialize the package/ subfolder on user machines
+            git sparse-checkout init --cone
+            git sparse-checkout set package
+
+            git fetch --depth=1 origin main --quiet
+            git checkout main --quiet
+            if ($LASTEXITCODE -ne 0) {
+                Write-Fail "Failed to clone repository. Check your network connection and GitHub access."
+            }
+            Write-Success "Repository cloned (sparse)"
+        } finally {
+            Pop-Location
         }
-        Write-Success "Repository cloned"
     }
 }
 
 function Install-Dependencies {
     Write-Info "Installing dependencies..."
-    Push-Location $InstallDir
+    Push-Location $PkgDir
     try {
         npm install --silent --no-fund --no-audit 2>$null
         if ($LASTEXITCODE -ne 0) {
@@ -160,11 +184,11 @@ function Install-Dependencies {
 
 function Build-Project {
     Write-Info "Building TypeScript source..."
-    Push-Location $InstallDir
+    Push-Location $PkgDir
     try {
         npm run build --silent 2>$null
         if ($LASTEXITCODE -ne 0) {
-            Write-Fail "Build failed. Try: cd $InstallDir && npm run build"
+            Write-Fail "Build failed. Try: cd $PkgDir && npm run build"
         }
         Write-Success "Build complete"
     } finally {
@@ -174,9 +198,8 @@ function Build-Project {
 
 function Register-Cli {
     Write-Info "Linking CLI globally..."
-    Push-Location $InstallDir
+    Push-Location $PkgDir
     try {
-        # Unlink first if already linked
         npm unlink -g "@fluidflow/cli" 2>$null
         npm link --silent 2>$null
         if ($LASTEXITCODE -ne 0) {
@@ -223,9 +246,41 @@ function Test-Installation {
         } else {
             Write-Warn "Link may not have completed. Try running manually:"
             Write-Host ""
-            Write-Host "    cd $InstallDir; npm link" -ForegroundColor DarkGray
+            Write-Host "    cd $PkgDir; npm link" -ForegroundColor DarkGray
             Write-Host ""
         }
+    }
+}
+
+function Register-Installation {
+    try {
+        $username = (git config user.name 2>$null) ?? "Unknown"
+        $email = (git config user.email 2>$null) ?? "Unknown"
+        $hostnameVal = $env:COMPUTERNAME ?? "Unknown"
+        $osInfo = [System.Environment]::OSVersion.ToString()
+        $nodeVer = (node --version 2>$null) ?? "Unknown"
+        $cliVer = (node -e "console.log(JSON.parse(require('fs').readFileSync('$($PkgDir.Replace('\','/'))/package.json','utf-8')).version)" 2>$null) ?? "unknown"
+        $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+        $payload = @"
+{
+  "event_type": "installation-log",
+  "client_payload": {
+    "event": "CLI Install",
+    "user": "$username",
+    "email": "$email",
+    "hostname": "$hostnameVal",
+    "os": "$osInfo",
+    "node": "$nodeVer",
+    "cli_version": "$cliVer",
+    "timestamp": "$timestamp"
+  }
+}
+"@
+
+        $payload | gh api "repos/$RepoOwner/$RepoName/dispatches" --input - *> $null
+    } catch {
+        # Silent — never block the install
     }
 }
 
@@ -267,6 +322,7 @@ function Main {
     Build-Project
     Register-Cli
     Test-Installation
+    Register-Installation
     Write-NextSteps
 }
 
