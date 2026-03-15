@@ -29,9 +29,22 @@ export interface FileInstallResult {
 }
 
 /**
+ * Resolve the effective source root path within the cloned repo.
+ * If sourceRoot is configured, returns clonePath/sourceRoot.
+ * Otherwise, returns clonePath (repo root).
+ */
+export function resolveSourceRoot(config: WorkflowConfig, clonePath: string): string {
+  const sourceRoot = config.install.sourceRoot;
+  if (sourceRoot) {
+    return path.join(clonePath, sourceRoot);
+  }
+  return clonePath;
+}
+
+/**
  * Resolve which directories to install.
  * If explicit directories are configured, use those.
- * Otherwise, auto-discover all directories from the cloned repo root.
+ * Otherwise, auto-discover all directories from the source root.
  */
 export function resolveDirectories(config: WorkflowConfig, clonePath: string): string[] {
   const explicit = config.install.directories;
@@ -39,29 +52,33 @@ export function resolveDirectories(config: WorkflowConfig, clonePath: string): s
     return explicit;
   }
 
-  // Auto-discover: all directories at the repo root, minus ignored entries
-  return fs.readdirSync(clonePath)
+  // Auto-discover: all directories at the source root, minus ignored entries
+  const sourceRoot = resolveSourceRoot(config, clonePath);
+  return fs.readdirSync(sourceRoot)
     .filter((name) => {
       if (IGNORED_ENTRIES.has(name)) return false;
-      const fullPath = path.join(clonePath, name);
+      const fullPath = path.join(sourceRoot, name);
       return fs.statSync(fullPath).isDirectory();
     });
 }
 
 /**
  * Copy workflow directories from the cloned source into the target repo.
+ * When sourceRoot is configured, source paths resolve from sourceRoot
+ * but install to the target root using just the directory basename.
  */
 export async function installFiles(
   config: WorkflowConfig,
   targetDir: string,
   clonePath: string
 ): Promise<FileInstallResult> {
+  const sourceRoot = resolveSourceRoot(config, clonePath);
   const directories = resolveDirectories(config, clonePath);
   const installedPaths: string[] = [];
   let totalFiles = 0;
 
   for (const dir of directories) {
-    const srcDir = path.join(clonePath, dir);
+    const srcDir = path.join(sourceRoot, dir);
     const destDir = path.join(targetDir, dir);
 
     if (!pathExists(srcDir)) {
@@ -73,6 +90,56 @@ export async function installFiles(
     const copied = await copyRecursive(srcDir, destDir);
     totalFiles += copied.length;
     installedPaths.push(dir);
+  }
+
+  // Copy individual root files
+  if (config.install.rootFiles) {
+    for (const file of config.install.rootFiles) {
+      const srcPath = path.join(sourceRoot, file);
+      const destPath = path.join(targetDir, file);
+
+      if (!pathExists(srcPath)) {
+        logWarn(`Source file '${file}' not found in repo, skipping.`);
+        continue;
+      }
+
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
+      fs.copyFileSync(srcPath, destPath);
+      totalFiles++;
+      installedPaths.push(file);
+      logStep(`Copying ${file}`);
+    }
+  }
+
+  // Create any configured empty directories
+  if (config.install.createDirectories) {
+    for (const dir of config.install.createDirectories) {
+      const dirPath = path.join(targetDir, dir);
+      fs.mkdirSync(dirPath, { recursive: true });
+      logStep(`Created ${dir}/`);
+    }
+  }
+
+  // Process template files
+  if (config.install.templateFiles) {
+    for (const tmpl of config.install.templateFiles) {
+      const srcPath = path.join(sourceRoot, tmpl.source);
+      const destPath = path.join(targetDir, tmpl.target);
+
+      if (!pathExists(srcPath)) {
+        logWarn(`Template '${tmpl.source}' not found, skipping.`);
+        continue;
+      }
+
+      // Ensure parent directory exists
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
+
+      // Copy template (tokens left for user to fill)
+      fs.copyFileSync(srcPath, destPath);
+      totalFiles++;
+      installedPaths.push(tmpl.target);
+      logStep(`Created ${tmpl.target} (from template)`);
+    }
   }
 
   // Make scripts executable
@@ -98,18 +165,20 @@ export async function installFiles(
 
 /**
  * Update workflow directories (overwrite existing).
+ * Template files are NOT overwritten during updates to preserve user edits.
  */
 export async function updateFiles(
   config: WorkflowConfig,
   targetDir: string,
   clonePath: string
 ): Promise<FileInstallResult> {
+  const sourceRoot = resolveSourceRoot(config, clonePath);
   const directories = resolveDirectories(config, clonePath);
   const installedPaths: string[] = [];
   let totalFiles = 0;
 
   for (const dir of directories) {
-    const srcDir = path.join(clonePath, dir);
+    const srcDir = path.join(sourceRoot, dir);
     const destDir = path.join(targetDir, dir);
 
     if (!pathExists(srcDir)) {
@@ -122,6 +191,28 @@ export async function updateFiles(
     totalFiles += copied.length;
     installedPaths.push(dir);
   }
+
+  // Copy individual root files (these ARE updated, unlike templateFiles)
+  if (config.install.rootFiles) {
+    for (const file of config.install.rootFiles) {
+      const srcPath = path.join(sourceRoot, file);
+      const destPath = path.join(targetDir, file);
+
+      if (!pathExists(srcPath)) {
+        logWarn(`Source file '${file}' not found in repo, skipping.`);
+        continue;
+      }
+
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
+      fs.copyFileSync(srcPath, destPath);
+      totalFiles++;
+      installedPaths.push(file);
+      logStep(`Updating ${file}`);
+    }
+  }
+
+  // Template files are NOT updated — they contain user-specific values
+  // (manifest.yaml, CLAUDE.md, AGENTS.md). Users update these manually.
 
   // Make scripts executable
   const extensions = config.install.executableExtensions ?? [".sh"];

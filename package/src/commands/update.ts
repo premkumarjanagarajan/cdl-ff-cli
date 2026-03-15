@@ -20,6 +20,9 @@ import {
   updateManifestEntry,
 } from "../modules/manifest.js";
 import { registerWorkflowUpdate } from "../modules/registration.js";
+import { discoverAddons, filterAddonsById, validateAddonIds } from "../modules/addon-discovery.js";
+import { installAllAddonRules } from "../modules/addon-installer.js";
+import type { DiscoveredAddon } from "../workflows/types.js";
 
 // -- CLI entry point ----------------------------------------------------------
 
@@ -54,6 +57,7 @@ export async function runUpdateCLI(args: string[]): Promise<void> {
   let targetDir: string | undefined;
   let force = false;
   let checkOnly = false;
+  let addonIds: string[] | undefined;
 
   for (let i = 0; i < restArgs.length; i++) {
     const arg = restArgs[i]!;
@@ -61,6 +65,12 @@ export async function runUpdateCLI(args: string[]): Promise<void> {
       force = true;
     } else if (arg === "--check" || arg === "-c") {
       checkOnly = true;
+    } else if (arg === "--addons" || arg === "-a") {
+      const nextArg = restArgs[i + 1];
+      if (nextArg && !nextArg.startsWith("-")) {
+        addonIds = nextArg.split(",").map((s) => s.trim()).filter(Boolean);
+        i++;
+      }
     } else if (arg === "--help" || arg === "-h") {
       printUpdateHelp(config.id);
       return;
@@ -156,14 +166,47 @@ export async function runUpdateCLI(args: string[]): Promise<void> {
       const fileResult = await updateFiles(config, targetDir, source.localPath);
       const entryResult = await installEntryPoint(config, targetDir, source.localPath);
 
-      const installedPaths = [...fileResult.installedPaths, ...entryResult.installedPaths];
-      const totalFiles = fileResult.filesCopied + entryResult.filesCopied;
+      // Addon handling: re-install previously selected addons or use --addons override
+      const availableAddons = discoverAddons(source.localPath);
+      let selectedAddons: DiscoveredAddon[] = [];
+      const previousAddonIds = entry.addons ?? [];
+
+      if (availableAddons.length > 0) {
+        if (addonIds !== undefined) {
+          // --addons flag explicitly provided: use those
+          const { valid, invalid } = validateAddonIds(availableAddons, addonIds);
+          if (invalid.length > 0) {
+            console.log(theme.textWarning(`  Unknown addons: ${invalid.join(", ")}`));
+          }
+          selectedAddons = filterAddonsById(availableAddons, valid);
+        } else if (previousAddonIds.length > 0) {
+          // Re-install previously installed addons
+          selectedAddons = filterAddonsById(availableAddons, previousAddonIds);
+          if (selectedAddons.length > 0) {
+            console.log(theme.textSecondary(`  Re-installing addons: ${selectedAddons.map((a) => a.manifest.name).join(", ")}`));
+          }
+        }
+      }
+
+      let addonInstalledPaths: string[] = [];
+      let addonFilesCopied = 0;
+      if (selectedAddons.length > 0) {
+        const addonResults = await installAllAddonRules(selectedAddons, targetDir);
+        for (const r of addonResults) {
+          addonInstalledPaths.push(...r.installedPaths);
+          addonFilesCopied += r.filesCopied;
+        }
+      }
+
+      const installedPaths = [...fileResult.installedPaths, ...entryResult.installedPaths, ...addonInstalledPaths];
+      const totalFiles = fileResult.filesCopied + entryResult.filesCopied + addonFilesCopied;
 
       const updatedEntry = updateManifestEntry(entry, {
         commitSha: source.commitSha,
         branch: source.branch,
         installedPaths,
         platform: "both",
+        addons: selectedAddons.map((a) => a.manifest.id),
       });
       writeWorkflowManifest(targetDir, config.id, updatedEntry);
       registerWorkflowUpdate(config.id, config.name, targetDir, previousSha, source.commitSha);
@@ -201,8 +244,9 @@ function printUpdateHelp(workflowId: string): void {
   console.log(theme.textSecondary(`    ff update ${workflowId} [target-dir] [options]`));
   console.log();
   console.log(theme.text("  Options:"));
-  console.log(`    ${theme.command("--check, -c")}  ${theme.textSecondary("Check for updates without applying")}`);
-  console.log(`    ${theme.command("--force, -f")}  ${theme.textSecondary("Force update even if up to date")}`);
-  console.log(`    ${theme.command("--help, -h")}   ${theme.textSecondary("Show this help")}`);
+  console.log(`    ${theme.command("--check, -c")}   ${theme.textSecondary("Check for updates without applying")}`);
+  console.log(`    ${theme.command("--force, -f")}   ${theme.textSecondary("Force update even if up to date")}`);
+  console.log(`    ${theme.command("--addons, -a")}  ${theme.textSecondary("Override addon selection (e.g., --addons betting,compliance)")}`);
+  console.log(`    ${theme.command("--help, -h")}    ${theme.textSecondary("Show this help")}`);
   console.log();
 }

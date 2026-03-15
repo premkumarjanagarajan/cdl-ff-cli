@@ -68,7 +68,7 @@ export function transformEntryPointForCopilot(mdcContent: string): string {
  * Frontmatter with non-Cursor fields is left intact.
  */
 export function stripCursorFrontmatter(content: string): string {
-  const match = content.match(/^---\n([\s\S]*?)\n---\n?/);
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (!match) return content;
 
   const frontmatterBody = match[1]!;

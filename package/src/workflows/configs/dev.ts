@@ -1,12 +1,11 @@
 /**
- * Development Workflow Configuration
+ * Development Workflow Configuration — Fluid Flow v1.0
  *
  * AI-powered development lifecycle orchestration.
- * Source: BetssonGroup/fluid-flow-ai
+ * Source: premkumarjanagarajan/fluid-flow-ai
  *
- * This was the original (and only) workflow before the multi-workflow
- * architecture. All hardcoded values from installer/index.ts have been
- * migrated here.
+ * Installs the Fluid Flow framework (orchestrator, knowledge base,
+ * primitives, skills, workflows, templates) into the target repo.
  */
 
 import type { WorkflowConfig } from "../types.js";
@@ -23,24 +22,33 @@ export const devWorkflow: WorkflowConfig = {
   },
 
   install: {
-    // No explicit directories — auto-discovers all directories from the repo
+    // v1.0 framework directories to copy into the target repo
+    directories: [
+      "knowledge-base-core",
+      "primitives",
+      "skills",
+      "workflow",
+      "templates",
+    ],
+
+    // Standalone framework files at the repo root
+    rootFiles: ["orchestrator.md"],
 
     entryPoints: {
       cursor: {
-        source: ".cursor/rules/workflow.mdc",
-        target: ".cursor/rules/workflow.mdc",
+        source: ".cursor/rules/instructions.mdc",
+        target: ".cursor/rules/instructions.mdc",
       },
       copilot: {
-        source: ".cursor/rules/workflow.mdc",
+        source: ".github/copilot-instructions.md",
         target: ".github/copilot-instructions.md",
-        transform: "copilot",
       },
     },
 
-    techInstructions: {
-      sourceDir: "main-workflow/Instructions/technology",
-      targetDir: ".github/instructions",
-    },
+    // Create the initiatives directory structure
+    createDirectories: [
+      "initiatives",
+    ],
 
     executableExtensions: [".sh"],
   },

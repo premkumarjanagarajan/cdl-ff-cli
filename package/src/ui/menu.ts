@@ -188,6 +188,88 @@ export function promptMenu(
   });
 }
 
+// ── Multi-select ──────────────────────────────────────
+
+export interface MultiSelectOptions extends MenuOptions {
+  /** Keys of pre-selected items (shown with "(installed)" tag). */
+  preSelected?: string[];
+}
+
+/**
+ * Display a multi-select menu. The user enters comma-separated numbers,
+ * "all" to select everything, or presses Enter for none/keep-current.
+ * Returns the selected MenuItems.
+ */
+export function promptMultiSelect(
+  items: MenuItem[],
+  options: MultiSelectOptions
+): Promise<MenuItem[]> {
+  const { prompt: promptText = "Select options", preSelected = [] } = options;
+
+  // Enhance items with pre-selection indicators
+  const enhancedItems: MenuItem[] = items.map((item) => ({
+    ...item,
+    description: preSelected.includes(item.key)
+      ? `${item.description ?? ""} (installed)`
+      : item.description,
+  }));
+
+  // Render the menu box (reuse renderMenu)
+  console.log();
+  console.log(renderMenu(enhancedItems, options));
+  console.log();
+
+  return new Promise<MenuItem[]>((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      terminal: true,
+    });
+
+    const hint =
+      preSelected.length > 0
+        ? `(comma-separated, 'all', or Enter to keep current)`
+        : `(comma-separated, 'all', or Enter for none)`;
+
+    rl.question(
+      `  ${theme.prompt(promptText)} ${theme.textSecondary(hint)}: `,
+      (answer) => {
+        rl.close();
+        const trimmed = answer.trim().toLowerCase();
+
+        if (trimmed === "" && preSelected.length > 0) {
+          // Keep current selection
+          resolve(items.filter((i) => preSelected.includes(i.key)));
+          return;
+        }
+
+        if (trimmed === "" || trimmed === "none") {
+          resolve([]);
+          return;
+        }
+
+        if (trimmed === "all") {
+          resolve([...items]);
+          return;
+        }
+
+        // Parse comma-separated numbers
+        const selected: MenuItem[] = [];
+        const parts = trimmed.split(",").map((s) => s.trim());
+        for (const part of parts) {
+          const num = parseInt(part, 10);
+          if (num >= 1 && num <= items.length) {
+            const item = items[num - 1]!;
+            if (!selected.includes(item)) selected.push(item);
+          }
+        }
+
+        resolve(selected);
+      }
+    );
+  });
+}
+
 // ── Branch selection ───────────────────────────────────
 
 export interface BranchPromptOptions {

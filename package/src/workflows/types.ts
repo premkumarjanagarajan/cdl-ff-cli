@@ -55,8 +55,17 @@ export interface SourceConfig {
 /** Configuration for which files to install from the source repo. */
 export interface InstallConfig {
   /**
+   * Base path within the source repo to install from.
+   * All `directories` and `entryPoints.source` paths are relative to this.
+   * Defaults to "." (repo root) if omitted.
+   */
+  sourceRoot?: string;
+
+  /**
    * Directories from the source repo to copy into the target.
-   * If omitted or empty, all directories from the repo root are copied
+   * Paths are relative to `sourceRoot`. Installed at the target root
+   * using only the directory basename (e.g. "sub/.github" → ".github").
+   * If omitted or empty, all directories from the sourceRoot are copied
    * (excluding .git and repo metadata).
    */
   directories?: string[];
@@ -70,8 +79,36 @@ export interface InstallConfig {
   /** Technology-specific instruction files for Copilot (optional). */
   techInstructions?: TechInstructionsConfig;
 
+  /**
+   * Individual files from the source root to copy into the target root.
+   * Unlike templateFiles, these are overwritten during updates.
+   * Paths are relative to `sourceRoot`.
+   */
+  rootFiles?: string[];
+
+  /**
+   * Template files to process during installation.
+   * Each template is copied to the target with {{TOKEN}} placeholders
+   * left for the user to fill (or replaced if tokens are provided).
+   */
+  templateFiles?: TemplateFileConfig[];
+
+  /**
+   * Directories to create (empty) in the target during installation.
+   * Useful for setting up expected directory structures.
+   */
+  createDirectories?: string[];
+
   /** File extensions that should be made executable (e.g. [".sh"]). */
   executableExtensions?: string[];
+}
+
+/** Configuration for a template file to be processed during installation. */
+export interface TemplateFileConfig {
+  /** Source path relative to sourceRoot (e.g. "templates/manifest.yaml.template"). */
+  source: string;
+  /** Target path relative to target root (e.g. "manifest.yaml"). */
+  target: string;
 }
 
 /** Configuration for a platform-specific entry point file. */
@@ -103,6 +140,30 @@ export interface McpConfig {
   configFile: string;
 }
 
+// -- Addon Types --------------------------------------------------------------
+
+/** Schema for addon.json in the source repository. */
+export interface AddonManifest {
+  /** Unique addon identifier (e.g. "betting", "payments"). */
+  id: string;
+  /** Human-readable name shown in menus. */
+  name: string;
+  /** Short description shown in the addon picker. */
+  description: string;
+  /** Directory containing rule files, relative to the addon root. Default: "rules". */
+  rulesDir?: string;
+  /** Path to MCP config JSON file, relative to the addon root. */
+  mcp?: string;
+}
+
+/** A discovered addon with its resolved location in the cloned source repo. */
+export interface DiscoveredAddon {
+  /** Parsed addon.json manifest. */
+  manifest: AddonManifest;
+  /** Absolute path to the addon directory in the cloned repo. */
+  localPath: string;
+}
+
 // -- Manifest Types -----------------------------------------------------------
 
 /** Supported target platforms for installation. */
@@ -129,6 +190,8 @@ export interface WorkflowManifestEntry {
   installedAt: string;
   updatedAt: string;
   installedPaths: string[];
+  /** IDs of installed domain addons. Undefined or empty = no addons. */
+  addons?: string[];
 }
 
 /**

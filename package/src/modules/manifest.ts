@@ -93,6 +93,7 @@ export function createManifestEntry(opts: {
   branch: string;
   sourceRepo: string;
   installedPaths: string[];
+  addons?: string[];
 }): WorkflowManifestEntry {
   const now = new Date().toISOString();
   return {
@@ -103,6 +104,7 @@ export function createManifestEntry(opts: {
     installedAt: now,
     updatedAt: now,
     installedPaths: opts.installedPaths,
+    ...(opts.addons && opts.addons.length > 0 ? { addons: opts.addons } : {}),
   };
 }
 
@@ -116,6 +118,7 @@ export function updateManifestEntry(
     branch: string;
     installedPaths: string[];
     platform?: Platform;
+    addons?: string[];
   }
 ): WorkflowManifestEntry {
   return {
@@ -125,6 +128,7 @@ export function updateManifestEntry(
     updatedAt: new Date().toISOString(),
     installedPaths: opts.installedPaths,
     ...(opts.platform ? { platform: opts.platform } : {}),
+    ...(opts.addons !== undefined ? { addons: opts.addons.length > 0 ? opts.addons : undefined } : {}),
   };
 }
 

@@ -22,7 +22,7 @@ import {
   transformTechInstruction,
   TECH_INSTRUCTION_MAPPINGS,
 } from "../installer/copilot-adapter.js";
-import { resolveDirectories } from "../modules/file-installer.js";
+import { resolveDirectories, resolveSourceRoot } from "../modules/file-installer.js";
 import type { WorkflowConfig } from "../workflows/types.js";
 
 export interface EntryPointResult {
@@ -76,7 +76,8 @@ async function installSinglePlatformEntry(
     return { filesCopied: 0, installedPaths: [] };
   }
 
-  const entrySourcePath = path.join(clonePath, entryConfig.source);
+  const sourceRoot = resolveSourceRoot(config, clonePath);
+  const entrySourcePath = path.join(sourceRoot, entryConfig.source);
 
   if (!pathExists(entrySourcePath)) {
     throw new Error(
@@ -169,13 +170,14 @@ async function createCopilotTechInstructions(
   const techConfig = config.install.techInstructions;
   if (!techConfig) return 0;
 
+  const sourceRoot = resolveSourceRoot(config, sourceDir);
   const instructionsDir = path.join(targetDir, techConfig.targetDir);
   await ensureDirectory(instructionsDir);
 
   let created = 0;
 
   for (const mapping of TECH_INSTRUCTION_MAPPINGS) {
-    const srcPath = path.join(sourceDir, techConfig.sourceDir, mapping.sourceRelPath);
+    const srcPath = path.join(sourceRoot, techConfig.sourceDir, mapping.sourceRelPath);
 
     if (!pathExists(srcPath)) continue;
 

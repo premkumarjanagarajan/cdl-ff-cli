@@ -213,7 +213,10 @@ function handleGlobalStatus(): void {
         lines.push(
           `  ${theme.textSuccess("\u2713")} ${theme.text(wf.name)}` +
           `  ${theme.textSecondary(platformLabel)}` +
-          `  ${theme.textMuted(entry.commitSha.slice(0, 8))}`
+          `  ${theme.textMuted(entry.commitSha.slice(0, 8))}` +
+          (entry.addons && entry.addons.length > 0
+            ? `  ${theme.textMuted(`+${entry.addons.length} addon${entry.addons.length > 1 ? "s" : ""}`)}`
+            : "")
         );
       } else {
         lines.push(
@@ -274,7 +277,7 @@ function printHelp(): void {
   console.log();
   console.log(theme.text("  Commands:"));
   console.log(
-    `    ${theme.command("install <workflow>")}   ${theme.textSecondary("Install a workflow into a repository")}`
+    `    ${theme.command("install <workflow>")}   ${theme.textSecondary("Install a workflow (--addons betting,compliance)")}`
   );
   console.log(
     `    ${theme.command("update <workflow>")}    ${theme.textSecondary("Update a workflow to the latest version")}`
@@ -325,6 +328,9 @@ function printHelp(): void {
   );
   console.log(
     theme.textSecondary("    ff install dev                      # Install dev workflow")
+  );
+  console.log(
+    theme.textSecondary("    ff install dev --addons betting     # Install with betting addon")
   );
   console.log(
     theme.textSecondary("    ff update dev                       # Update dev workflow")

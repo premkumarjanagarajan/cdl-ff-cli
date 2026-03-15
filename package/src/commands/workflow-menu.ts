@@ -8,7 +8,7 @@
 import path from "node:path";
 import { theme } from "../ui/theme.js";
 import { renderBox } from "../ui/box.js";
-import { promptMenu, promptDirectory, promptConfirm, promptBranch } from "../ui/menu.js";
+import { promptMenu, promptDirectory, promptConfirm, promptBranch, promptMultiSelect } from "../ui/menu.js";
 import { shortenPath } from "../utils/system.js";
 import { isDirectory } from "../installer/file-ops.js";
 import { cloneSource, fetchBranches, getRepoInfo, getRemoteHeadSha, compareCommits, getRecentCommits } from "../installer/github-source.js";
@@ -24,7 +24,9 @@ import {
 } from "../modules/manifest.js";
 import { setupWorkflowMcp, analyzeAllWorkflowTargets, loadMcpServers } from "../modules/mcp-installer.js";
 import { registerWorkflowInstall, registerWorkflowUpdate } from "../modules/registration.js";
-import type { WorkflowConfig } from "../workflows/types.js";
+import { discoverAddons, filterAddonsById } from "../modules/addon-discovery.js";
+import { installAllAddonRules } from "../modules/addon-installer.js";
+import type { WorkflowConfig, DiscoveredAddon } from "../workflows/types.js";
 import type { MenuItem } from "../ui/menu.js";
 
 // -- Sub-menu -----------------------------------------------------------------
@@ -197,9 +199,44 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
       // Install entry points for both Cursor and Copilot
       const entryResult = await installEntryPoint(config, targetDir, source.localPath);
 
+      // Addon discovery and selection
+      const availableAddons = discoverAddons(source.localPath);
+      let selectedAddons: DiscoveredAddon[] = [];
+
+      if (availableAddons.length > 0) {
+        console.log();
+        console.log(theme.text("  Domain-specific addons are available for this workflow."));
+        const addonItems = availableAddons.map((a) => ({
+          key: a.manifest.id,
+          label: a.manifest.name,
+          description: a.manifest.description,
+        }));
+        const selected = await promptMultiSelect(addonItems, {
+          title: "Available Addons",
+          prompt: "Select addons to install",
+        });
+        selectedAddons = filterAddonsById(availableAddons, selected.map((s) => s.key));
+
+        if (selectedAddons.length > 0) {
+          console.log();
+          console.log(theme.textSecondary(`  Addons: ${selectedAddons.map((a) => a.manifest.name).join(", ")}`));
+        }
+      }
+
+      // Install addon rules
+      let addonInstalledPaths: string[] = [];
+      let addonFilesCopied = 0;
+      if (selectedAddons.length > 0) {
+        const addonResults = await installAllAddonRules(selectedAddons, targetDir);
+        for (const r of addonResults) {
+          addonInstalledPaths.push(...r.installedPaths);
+          addonFilesCopied += r.filesCopied;
+        }
+      }
+
       // Combine installed paths
-      const installedPaths = [...fileResult.installedPaths, ...entryResult.installedPaths];
-      const totalFiles = fileResult.filesCopied + entryResult.filesCopied;
+      const installedPaths = [...fileResult.installedPaths, ...entryResult.installedPaths, ...addonInstalledPaths];
+      const totalFiles = fileResult.filesCopied + entryResult.filesCopied + addonFilesCopied;
 
       // Write manifest
       const manifestEntry = createManifestEntry({
@@ -208,6 +245,7 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
         branch: source.branch,
         sourceRepo: repo.fullName,
         installedPaths,
+        addons: selectedAddons.map((a) => a.manifest.id),
       });
       writeWorkflowManifest(targetDir, config.id, manifestEntry);
       registerWorkflowInstall(config.id, config.name, targetDir, source.commitSha);
@@ -230,9 +268,9 @@ async function handleInstall(config: WorkflowConfig): Promise<void> {
       console.log();
 
       console.log(theme.hint("  Next steps:"));
-      console.log(theme.textSecondary("  1. Open this project in Cursor \u2014 the workflow rule activates automatically"));
-      console.log(theme.textSecondary("  2. In VS Code, GitHub Copilot loads the instructions automatically"));
-      console.log(theme.textSecondary("  3. Make a development request in either IDE to trigger the workflow"));
+      console.log(theme.textSecondary("  1. Edit manifest.yaml \u2014 declare your repos, contracts, and teams"));
+      console.log(theme.textSecondary("  2. Run 'npm install' in mcp/ to set up the MCP server"));
+      console.log(theme.textSecondary("  3. Open in VS Code and use @fluid-flow-coordinator to start developing"));
 
       console.log();
       console.log(
@@ -328,14 +366,37 @@ async function handleUpdate(config: WorkflowConfig): Promise<void> {
     const fileResult = await updateFiles(config, targetDir, source.localPath);
     const entryResult = await installEntryPoint(config, targetDir, source.localPath);
 
-    const installedPaths = [...fileResult.installedPaths, ...entryResult.installedPaths];
-    const totalFiles = fileResult.filesCopied + entryResult.filesCopied;
+    // Re-install previously selected addons
+    const availableAddons = discoverAddons(source.localPath);
+    let selectedAddons: DiscoveredAddon[] = [];
+    const previousAddonIds = entry.addons ?? [];
+
+    if (availableAddons.length > 0 && previousAddonIds.length > 0) {
+      selectedAddons = filterAddonsById(availableAddons, previousAddonIds);
+      if (selectedAddons.length > 0) {
+        console.log(theme.textSecondary(`  Re-installing addons: ${selectedAddons.map((a) => a.manifest.name).join(", ")}`));
+      }
+    }
+
+    let addonInstalledPaths: string[] = [];
+    let addonFilesCopied = 0;
+    if (selectedAddons.length > 0) {
+      const addonResults = await installAllAddonRules(selectedAddons, targetDir);
+      for (const r of addonResults) {
+        addonInstalledPaths.push(...r.installedPaths);
+        addonFilesCopied += r.filesCopied;
+      }
+    }
+
+    const installedPaths = [...fileResult.installedPaths, ...entryResult.installedPaths, ...addonInstalledPaths];
+    const totalFiles = fileResult.filesCopied + entryResult.filesCopied + addonFilesCopied;
 
     const updatedEntry = updateManifestEntry(entry, {
       commitSha: source.commitSha,
       branch: source.branch,
       installedPaths,
       platform: "both",
+      addons: selectedAddons.map((a) => a.manifest.id),
     });
     writeWorkflowManifest(targetDir, config.id, updatedEntry);
     registerWorkflowUpdate(config.id, config.name, targetDir, previousSha, source.commitSha);
@@ -432,6 +493,9 @@ function handleStatus(config: WorkflowConfig): void {
         : entry.platform === "cursor"
           ? "Cursor IDE"
           : "GitHub Copilot";
+    const addonsLabel = entry.addons && entry.addons.length > 0
+      ? entry.addons.join(", ")
+      : "none";
     console.log(
       renderBox(
         [
@@ -442,6 +506,7 @@ function handleStatus(config: WorkflowConfig): void {
           `  ${theme.textSecondary("Installed:")}  ${theme.textSuccess("Yes")}`,
           `  ${theme.textSecondary("Platforms:")}  ${theme.text(platformLabel)}`,
           `  ${theme.textSecondary("Commit:")}     ${theme.text(entry.commitSha.slice(0, 8))}`,
+          `  ${theme.textSecondary("Addons:")}     ${theme.text(addonsLabel)}`,
           `  ${theme.textSecondary("Updated:")}    ${theme.text(new Date(entry.updatedAt).toLocaleDateString())}`,
           "",
         ],
