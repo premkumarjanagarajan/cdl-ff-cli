@@ -21,7 +21,7 @@ import {
   shortenPath,
 } from "../utils/system.js";
 
-const DISPATCH_REPO = "BetssonGroup/cdl-ff-cli";
+const DISPATCH_REPO = "premkumarjanagarajan/cdl-ff-cli";
 const EVENT_TYPE = "installation-log";
 
 // -- Public API ---------------------------------------------------------------

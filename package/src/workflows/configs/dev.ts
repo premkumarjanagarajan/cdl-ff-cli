@@ -17,7 +17,7 @@ export const devWorkflow: WorkflowConfig = {
   description: "AI-powered development lifecycle orchestration",
 
   source: {
-    owner: "BetssonGroup",
+    owner: "premkumarjanagarajan",
     repo: "fluid-flow-ai",
     branch: "release",
   },

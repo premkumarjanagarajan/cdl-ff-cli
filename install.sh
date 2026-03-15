@@ -27,7 +27,7 @@ CYAN='\033[0;36m'
 RESET='\033[0m'
 
 # ── Config ──────────────────────────────────────────────
-REPO_OWNER="BetssonGroup"
+REPO_OWNER="premkumarjanagarajan"
 REPO_NAME="cdl-ff-cli"
 INSTALL_DIR="$HOME/.ff-cli"
 PKG_DIR="$INSTALL_DIR/package"

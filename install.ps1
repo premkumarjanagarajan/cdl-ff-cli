@@ -21,7 +21,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # -- Config --------------------------------------------------------
-$RepoOwner    = "BetssonGroup"
+$RepoOwner    = "premkumarjanagarajan"
 $RepoName     = "cdl-ff-cli"
 $InstallDir   = Join-Path $env:USERPROFILE ".ff-cli"
 $PkgDir       = Join-Path $InstallDir "package"

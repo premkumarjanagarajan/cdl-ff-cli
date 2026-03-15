@@ -27,7 +27,7 @@ import { registerCliSelfUpdate } from "../modules/registration.js";
 
 // ── CLI source repository ────────────────────────────────────────────────────
 
-const CLI_REPO_OWNER = "BetssonGroup";
+const CLI_REPO_OWNER = "premkumarjanagarajan";
 const CLI_REPO_NAME = "cdl-ff-cli";
 const CLI_BRANCH = "main";
 
