@@ -32,7 +32,7 @@ export const devWorkflow: WorkflowConfig = {
     ],
 
     // Standalone framework files at the repo root
-    rootFiles: ["orchestrator.md"],
+    rootFiles: ["orchestrator.md", "domain-catalog.yaml"],
 
     entryPoints: {
       cursor: {
