@@ -62,9 +62,17 @@ export interface InstallConfig {
   sourceRoot?: string;
 
   /**
+   * Prefix applied to all target paths (directories, rootFiles, createDirectories).
+   * e.g. "fluid-flow-ai" installs everything under fluid-flow-ai/ in the target repo.
+   * Entry points are NOT prefixed (they go to IDE-specific locations).
+   * Defaults to "" (target root) if omitted.
+   */
+  targetRoot?: string;
+
+  /**
    * Directories from the source repo to copy into the target.
-   * Paths are relative to `sourceRoot`. Installed at the target root
-   * using only the directory basename (e.g. "sub/.github" → ".github").
+   * Paths are relative to `sourceRoot`. Installed at `targetRoot/{dirname}`
+   * in the target (or target root if targetRoot is omitted).
    * If omitted or empty, all directories from the sourceRoot are copied
    * (excluding .git and repo metadata).
    */

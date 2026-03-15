@@ -4,8 +4,8 @@
  * AI-powered development lifecycle orchestration.
  * Source: premkumarjanagarajan/fluid-flow-ai
  *
- * Installs the Fluid Flow framework (orchestrator, knowledge base,
- * primitives, skills, workflows, templates) into the target repo.
+ * Installs the Fluid Flow framework into fluid-flow-ai/ subfolder
+ * in the target repo. Entry points go to IDE-specific locations.
  */
 
 import type { WorkflowConfig } from "../types.js";
@@ -22,7 +22,10 @@ export const devWorkflow: WorkflowConfig = {
   },
 
   install: {
-    // v1.0 framework directories to copy into the target repo
+    // Install all framework files under fluid-flow-ai/ in the target repo
+    targetRoot: "fluid-flow-ai",
+
+    // Framework directories (relative to source root, installed under targetRoot)
     directories: [
       "knowledge-base-core",
       "primitives",
@@ -31,9 +34,10 @@ export const devWorkflow: WorkflowConfig = {
       "templates",
     ],
 
-    // Standalone framework files at the repo root
+    // Standalone framework files (installed under targetRoot)
     rootFiles: ["orchestrator.md", "domain-catalog.yaml"],
 
+    // Entry points go to IDE-specific locations (NOT prefixed by targetRoot)
     entryPoints: {
       cursor: {
         source: ".cursor/rules/instructions.mdc",
@@ -45,7 +49,7 @@ export const devWorkflow: WorkflowConfig = {
       },
     },
 
-    // Create the initiatives directory structure
+    // Create initiatives directory under the subfolder
     createDirectories: [
       "initiatives",
     ],

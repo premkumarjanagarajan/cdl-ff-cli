@@ -42,6 +42,19 @@ export function resolveSourceRoot(config: WorkflowConfig, clonePath: string): st
 }
 
 /**
+ * Resolve the target root prefix.
+ * If targetRoot is configured, returns targetDir/targetRoot.
+ * Otherwise, returns targetDir.
+ */
+export function resolveTargetRoot(config: WorkflowConfig, targetDir: string): string {
+  const targetRoot = config.install.targetRoot;
+  if (targetRoot) {
+    return path.join(targetDir, targetRoot);
+  }
+  return targetDir;
+}
+
+/**
  * Resolve which directories to install.
  * If explicit directories are configured, use those.
  * Otherwise, auto-discover all directories from the source root.
@@ -73,13 +86,14 @@ export async function installFiles(
   clonePath: string
 ): Promise<FileInstallResult> {
   const sourceRoot = resolveSourceRoot(config, clonePath);
+  const effectiveTarget = resolveTargetRoot(config, targetDir);
   const directories = resolveDirectories(config, clonePath);
   const installedPaths: string[] = [];
   let totalFiles = 0;
 
   for (const dir of directories) {
     const srcDir = path.join(sourceRoot, dir);
-    const destDir = path.join(targetDir, dir);
+    const destDir = path.join(effectiveTarget, dir);
 
     if (!pathExists(srcDir)) {
       logWarn(`Source directory '${dir}' not found in repo, skipping.`);
@@ -96,7 +110,7 @@ export async function installFiles(
   if (config.install.rootFiles) {
     for (const file of config.install.rootFiles) {
       const srcPath = path.join(sourceRoot, file);
-      const destPath = path.join(targetDir, file);
+      const destPath = path.join(effectiveTarget, file);
 
       if (!pathExists(srcPath)) {
         logWarn(`Source file '${file}' not found in repo, skipping.`);
@@ -114,7 +128,7 @@ export async function installFiles(
   // Create any configured empty directories
   if (config.install.createDirectories) {
     for (const dir of config.install.createDirectories) {
-      const dirPath = path.join(targetDir, dir);
+      const dirPath = path.join(effectiveTarget, dir);
       fs.mkdirSync(dirPath, { recursive: true });
       logStep(`Created ${dir}/`);
     }
@@ -145,7 +159,7 @@ export async function installFiles(
   // Make scripts executable
   const extensions = config.install.executableExtensions ?? [".sh"];
   for (const dir of directories) {
-    const dirPath = path.join(targetDir, dir);
+    const dirPath = path.join(effectiveTarget, dir);
     if (!pathExists(dirPath)) continue;
 
     const scripts = findFiles(dirPath, (f) =>
@@ -173,13 +187,14 @@ export async function updateFiles(
   clonePath: string
 ): Promise<FileInstallResult> {
   const sourceRoot = resolveSourceRoot(config, clonePath);
+  const effectiveTarget = resolveTargetRoot(config, targetDir);
   const directories = resolveDirectories(config, clonePath);
   const installedPaths: string[] = [];
   let totalFiles = 0;
 
   for (const dir of directories) {
     const srcDir = path.join(sourceRoot, dir);
-    const destDir = path.join(targetDir, dir);
+    const destDir = path.join(effectiveTarget, dir);
 
     if (!pathExists(srcDir)) {
       logWarn(`Source directory '${dir}' not found in repo, skipping.`);
@@ -196,7 +211,7 @@ export async function updateFiles(
   if (config.install.rootFiles) {
     for (const file of config.install.rootFiles) {
       const srcPath = path.join(sourceRoot, file);
-      const destPath = path.join(targetDir, file);
+      const destPath = path.join(effectiveTarget, file);
 
       if (!pathExists(srcPath)) {
         logWarn(`Source file '${file}' not found in repo, skipping.`);
@@ -217,7 +232,7 @@ export async function updateFiles(
   // Make scripts executable
   const extensions = config.install.executableExtensions ?? [".sh"];
   for (const dir of directories) {
-    const dirPath = path.join(targetDir, dir);
+    const dirPath = path.join(effectiveTarget, dir);
     if (!pathExists(dirPath)) continue;
 
     const scripts = findFiles(dirPath, (f) =>
