@@ -80,14 +80,25 @@ export async function runWorkspaceCreateCLI(args: string[]): Promise<void> {
 
   console.log(theme.textSuccess("  [OK] Fluid Flow installed"));
 
-  // 5. Open in VS Code
+  // 5. Create .code-workspace file so VS Code opens as a proper workspace
+  const workspaceFile = path.join(targetDir, `${name}.code-workspace`);
+  console.log(theme.hint(`  > Creating ${name}.code-workspace...`));
+  fs.writeFileSync(workspaceFile, JSON.stringify({
+    folders: [
+      { name, path: "." },
+    ],
+    settings: {},
+  }, null, 2));
+  console.log(theme.textSuccess("  [OK] Workspace file created"));
+
+  // 6. Open the .code-workspace file in VS Code (not the folder)
   console.log(theme.hint("  > Opening in VS Code..."));
   try {
-    execSync(`code "${targetDir}"`, { stdio: "pipe" });
+    execSync(`code "${workspaceFile}"`, { stdio: "pipe" });
     console.log(theme.textSuccess("  [OK] VS Code opened"));
   } catch {
     console.log(theme.textMuted("  Could not open VS Code automatically."));
-    console.log(theme.hint(`  Open manually: code "${targetDir}"`));
+    console.log(theme.hint(`  Open manually: code "${workspaceFile}"`));
   }
 
   // 6. Done
