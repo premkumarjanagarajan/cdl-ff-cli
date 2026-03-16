@@ -91,6 +91,7 @@ export interface InstallConfig {
    * Individual files from the source root to copy into the target root.
    * Unlike templateFiles, these are overwritten during updates.
    * Paths are relative to `sourceRoot`.
+   * Supports glob patterns (e.g. "*-domain-catalog.yaml").
    */
   rootFiles?: string[];
 

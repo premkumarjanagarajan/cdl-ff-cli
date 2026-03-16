@@ -106,9 +106,10 @@ export async function installFiles(
     installedPaths.push(dir);
   }
 
-  // Copy individual root files
+  // Copy individual root files (supports glob patterns)
   if (config.install.rootFiles) {
-    for (const file of config.install.rootFiles) {
+    const resolvedFiles = expandRootFiles(config.install.rootFiles, sourceRoot);
+    for (const file of resolvedFiles) {
       const srcPath = path.join(sourceRoot, file);
       const destPath = path.join(effectiveTarget, file);
 
@@ -209,7 +210,8 @@ export async function updateFiles(
 
   // Copy individual root files (these ARE updated, unlike templateFiles)
   if (config.install.rootFiles) {
-    for (const file of config.install.rootFiles) {
+    const resolvedFiles = expandRootFiles(config.install.rootFiles, sourceRoot);
+    for (const file of resolvedFiles) {
       const srcPath = path.join(sourceRoot, file);
       const destPath = path.join(effectiveTarget, file);
 
@@ -244,6 +246,33 @@ export async function updateFiles(
   }
 
   return { filesCopied: totalFiles, installedPaths };
+}
+
+// -- Glob expansion -----------------------------------------------------------
+
+/**
+ * Expand rootFiles entries that contain glob characters (* or ?)
+ * into actual filenames from the source root directory.
+ * Non-glob entries are passed through as-is.
+ */
+function expandRootFiles(patterns: string[], sourceRoot: string): string[] {
+  const result: string[] = [];
+  for (const pattern of patterns) {
+    if (pattern.includes("*") || pattern.includes("?")) {
+      // Simple glob: convert to regex and match against source root files
+      const regex = new RegExp(
+        "^" + pattern.replace(/\./g, "\\.").replace(/\*/g, ".*").replace(/\?/g, ".") + "$"
+      );
+      const files = fs.readdirSync(sourceRoot).filter((name) => {
+        const fullPath = path.join(sourceRoot, name);
+        return fs.statSync(fullPath).isFile() && regex.test(name);
+      });
+      result.push(...files);
+    } else {
+      result.push(pattern);
+    }
+  }
+  return result;
 }
 
 // -- Logging ------------------------------------------------------------------

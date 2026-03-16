@@ -27,6 +27,7 @@ export const devWorkflow: WorkflowConfig = {
 
     // Framework directories (relative to source root, installed under targetRoot)
     directories: [
+      ".github/agents",
       "knowledge-base-core",
       "primitives",
       "skills",
@@ -35,7 +36,7 @@ export const devWorkflow: WorkflowConfig = {
     ],
 
     // Standalone framework files (installed under targetRoot)
-    rootFiles: ["orchestrator.md", "domain-catalog.yaml"],
+    rootFiles: ["orchestrator.md", "domain-catalog.yaml", "*-domain-catalog.yaml"],
 
     // Entry points go to IDE-specific locations (NOT prefixed by targetRoot)
     entryPoints: {
