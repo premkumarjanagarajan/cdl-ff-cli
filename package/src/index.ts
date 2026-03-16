@@ -83,6 +83,19 @@ switch (command) {
     break;
   }
 
+  case "workspace": {
+    const subCommand = args[1]?.toLowerCase();
+    if (subCommand === "create") {
+      const { runWorkspaceCreateCLI } = await import("./commands/workspace-create.js");
+      await runWorkspaceCreateCLI(args.slice(2)).catch(fatal);
+    } else {
+      console.error(theme.textError(`  Unknown workspace command: ${subCommand || "(none)"}`));
+      console.error(theme.hint("  Usage: ff workspace create <name>"));
+      process.exit(1);
+    }
+    break;
+  }
+
   case "self-update":
   case "selfupdate": {
     const { runSelfUpdateCLI } = await import("./commands/self-update.js");
@@ -287,6 +300,9 @@ function printHelp(): void {
   );
   console.log(
     `    ${theme.command("mcp <workflow>")}       ${theme.textSecondary("Configure MCP servers for a workflow")}`
+  );
+  console.log(
+    `    ${theme.command("workspace create <n>")} ${theme.textSecondary("Create an empty FF workspace folder and open in VS Code")}`
   );
   console.log(
     `    ${theme.command("tools")}                ${theme.textSecondary("Open the developer tools menu (Slidev, self-update)")}`
